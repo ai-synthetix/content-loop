@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"regexp"
@@ -857,10 +858,63 @@ func (s *Server) createApproval(w http.ResponseWriter, r *http.Request) {
 		if cid := chi.URLParam(r, "id"); cid != "" {
 			body["content_item_id"] = cid
 		}
+		// normalize decision -> status mapping and set required fields
+		decisionRaw, _ := body["decision"].(string)
+		// also accept decision from body["status"] for backwards compat
+		if decisionRaw == "" {
+			if v, ok := body["status"].(string); ok {
+				decisionRaw = v
+			}
+		}
+		decisionRaw = strings.ToLower(strings.TrimSpace(decisionRaw))
+		if decisionRaw == "" {
+			decisionRaw = "approved"
+		}
+		// map alternate spellings
+		switch decisionRaw {
+		case "approve", "approved":
+			decisionRaw = "approved"
+		case "reject", "rejected":
+			decisionRaw = "rejected"
+		case "changes_requested", "changes", "request_changes":
+			decisionRaw = "changes_requested"
+		}
+		body["decision"] = decisionRaw
+		// ensure version_id: use latest if not provided
+		if body["version_id"] == nil || fmt.Sprintf("%v", body["version_id"]) == "" {
+			cid := chi.URLParam(r, "id")
+			if cid != "" {
+				var latestID string
+				_ = s.Store.DB.Get(&latestID, `SELECT id FROM content_version WHERE content_item_id=? AND owner_user_id=? ORDER BY version_no DESC LIMIT 1`, cid, owner)
+				if latestID != "" {
+					body["version_id"] = latestID
+				}
+			}
+		}
+		// set actor from JWT email if available
+		if _, ok := body["actor"]; !ok || body["actor"] == "" {
+			if claims, ok := auth.UserFromContext(r.Context()); ok && claims.Email != "" {
+				body["actor"] = claims.Email
+			} else {
+				body["actor"] = owner
+			}
+		}
 		marshalJSONFields(body, "diff")
 		if err := s.Store.Insert("approval", body); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
+		}
+		// update content_item status to reflect approval decision
+		cid := chi.URLParam(r, "id")
+		if cid != "" {
+			statusMap := map[string]string{
+				"approved":          "approved",
+				"rejected":          "rejected",
+				"changes_requested": "changes_requested",
+			}
+			if newStatus, ok := statusMap[decisionRaw]; ok {
+				_, _ = s.Store.Update("content_item", cid, owner, map[string]any{"status": newStatus})
+			}
 		}
 	}
 	writeJSON(w, http.StatusCreated, body)

@@ -569,7 +569,46 @@ func (g *GenerationService) draftCanonical(ctx context.Context, title string, br
 }
 
 func (g *GenerationService) renderVariants(ctx context.Context, contentItemID, versionID, ownerUserID string, c canonicalDraft) []map[string]any {
-	channels := []string{"telegram", "familyos"}
+	// query channel table for project_id/owner, filter by channel.type, fallback to telegram if none
+	channels := []string{}
+	if g.Store != nil && g.Store.DB != nil {
+		var projectID string
+		if err := g.Store.DB.Get(&projectID, `SELECT project_id FROM content_item WHERE id=? AND owner_user_id=?`, contentItemID, ownerUserID); err == nil && projectID != "" {
+			rows, err := g.Store.DB.Queryx(`SELECT DISTINCT type FROM channel WHERE owner_user_id=? AND project_id=? AND type IN ('telegram','familyos','generic')`, ownerUserID, projectID)
+			if err == nil {
+				defer rows.Close()
+				for rows.Next() {
+					var t string
+					if err := rows.Scan(&t); err == nil && t != "" {
+						// exclude generic placeholder unless explicitly requested — use only real channel types
+						// but keep generic as variant if owner created one (treat as familyos-style rendering)
+						channels = append(channels, t)
+					}
+				}
+			}
+		} else {
+			// no project_id: fallback to all owner channels distinct types
+			rows, err := g.Store.DB.Queryx(`SELECT DISTINCT type FROM channel WHERE owner_user_id=? AND type IN ('telegram','familyos','generic')`, ownerUserID)
+			if err == nil {
+				defer rows.Close()
+				for rows.Next() {
+					var t string
+					if err := rows.Scan(&t); err == nil && t != "" {
+						channels = append(channels, t)
+					}
+				}
+			}
+		}
+		// dedupe already distinct; ensure telegram fallback if none
+		if len(channels) == 0 {
+			channels = []string{"telegram"}
+			log.Printf("[generation] renderVariants fallback to telegram — no connected channels for project owner=%s item=%s", ownerUserID, contentItemID)
+		} else {
+			log.Printf("[generation] renderVariants channels for owner=%s item=%s => %v", ownerUserID, contentItemID, channels)
+		}
+	} else {
+		channels = []string{"telegram"}
+	}
 	var out []map[string]any
 	// truncate body for variant prompts to avoid timeout
 	shortBody := c.BodyMarkdown

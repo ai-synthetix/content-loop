@@ -6,6 +6,7 @@ import { StatusBadge } from "../../../components/StatusBadge";
 import { PipelineStepper } from "../../../components/PipelineStepper";
 import { Skeleton, CardSkeleton } from "../../../components/Skeleton";
 import { GenerationProgress, type Job } from "../../../components/GenerationStatus";
+import { VariantsGrid, PrettyJSON, VariantCard } from "../../../components/VariantPreview";
 
 export default function ItemDetail() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +19,7 @@ export default function ItemDetail() {
   const [channels, setChannels] = useState<any[]>([]);
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [job, setJob] = useState<Job | null>(null);
+  const [approving, setApproving] = useState(false);
   const pollRef = useRef<number | null>(null);
 
   function on401() { clearToken(); router.replace("/login"); }
@@ -45,14 +47,12 @@ export default function ItemDetail() {
 
   function startPolling() {
     if (pollRef.current) window.clearInterval(pollRef.current);
-    // immediate fetch
     fetchJob();
     const iv = window.setInterval(async () => {
       const j = await fetchJob();
       if (j && (j.status === "succeeded" || j.status === "failed")) {
         window.clearInterval(iv);
         pollRef.current = null;
-        // refresh item and review on success
         try {
           await fetchItem();
           const r2 = await fetch(apiUrl(`/api/v1/content-items/${id}/review`), { headers: { ...authHeaders() } });
@@ -84,12 +84,10 @@ export default function ItemDetail() {
     return () => { if (pollRef.current) window.clearInterval(pollRef.current); };
   }, [id]);
 
-  // if job is active on first load, start polling
   useEffect(() => {
     if (job && (job.status === "pending" || job.status === "running")) {
       startPolling();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job?.id]);
 
   useEffect(() => {
@@ -105,13 +103,11 @@ export default function ItemDetail() {
       const d = await r.json().catch(() => ({}));
       if (r.status === 401) { on401(); return; }
       if (!r.ok && r.status !== 202) throw new Error(d.error || `generate failed ${r.status}`);
-      // accepted: has job_id
       const j = (d.job || d) as Job;
       if (j && j.id) {
         if (typeof j.progress === "string") j.progress = parseInt(j.progress as any, 10) || 0;
         setJob(j);
       } else if (d.job_id) {
-        // fetch job
         await fetchJob();
       }
       startPolling();
@@ -126,6 +122,25 @@ export default function ItemDetail() {
       if (!r.ok) throw new Error(d.error || String(r.status));
       setReview(d); setErr(null);
     } catch (e: any) { setErr(e.message); }
+  }
+
+  async function doApprove(decision: string) {
+    setApproving(true);
+    setErr(null);
+    try {
+      const r = await fetch(apiUrl(`/api/v1/content-items/${id}/approvals`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ decision }),
+      });
+      if (r.status === 401) { on401(); return; }
+      const d = await r.json().catch(()=>({}));
+      if (!r.ok) throw new Error(d.error || `approve failed ${r.status}`);
+      // refresh item to show new status
+      await fetchItem();
+      await loadReview();
+    } catch (e:any) { setErr(e.message); }
+    finally { setApproving(false); }
   }
 
   if (loading) return <div style={{ display: "grid", gap: 12 }}><CardSkeleton /><Skeleton style={{ height: 120 }} /></div>;
@@ -171,7 +186,9 @@ export default function ItemDetail() {
         </div>
       )}
 
-      <pre style={{ background: "#111", padding: 12, borderRadius: 8, overflow: "auto", fontSize: 12, marginTop: 12 }}>{JSON.stringify(item, null, 2)}</pre>
+      <div style={{ marginTop: 12 }}>
+        <PrettyJSON data={item} title="Content item JSON" collapsible />
+      </div>
 
       {channels.length > 0 && (
         <div style={{ marginTop: 16, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 10, padding: 12 }}>
@@ -194,15 +211,37 @@ export default function ItemDetail() {
       <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button onClick={doGenerate} style={{ ...btn, opacity: isActive ? 0.6 : 1, background: isActive ? "#2a4a7a" : "#3D8DFF", borderColor: "#3D8DFF", color: "#fff" }}>{isActive ? `${job?.step || "Generating"} ${job?.progress || 0}%` : "Generate (retryable)"}</button>
         <button onClick={loadReview} style={btn}>Review</button>
-        <button onClick={() => alert("approve stub — use PATCH /api/v1/content-items/{id} with status: approved")} style={btn}>Approve</button>
-        <button onClick={() => alert("changes_requested stub")} style={btn}>Request changes</button>
-        <button onClick={() => alert("reject stub")} style={btn}>Reject</button>
+        <button onClick={() => doApprove("approved")} disabled={approving || item.status==="approved"} style={{ ...btn, opacity: approving||item.status==="approved" ? 0.6 : 1, background: item.status==="approved" ? "#1f4a2b" : "#1a2636" }}>{approving ? "Approving…" : item.status==="approved" ? "✓ Approved" : "Approve"}</button>
+        <button onClick={() => doApprove("changes_requested")} disabled={approving} style={btn}>{approving ? "…" : "Request changes"}</button>
+        <button onClick={() => doApprove("rejected")} disabled={approving} style={btn}>{approving ? "…" : "Reject"}</button>
       </div>
       {err && !genError && <p style={{ color: "#ff6b6b", marginTop: 12 }}>Error: {err} <button onClick={() => setErr(null)} style={{ marginLeft: 8, background: "#1a2636", border: "1px solid #2a3a52", color: "#cfe0ff", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 11 }}>Dismiss</button></p>}
       {review && (
-        <div style={{ marginTop: 16, background: "#111", padding: 12, borderRadius: 8 }}>
-          <h3 style={{ margin: "0 0 8px" }}>Review bundle</h3>
-          <pre style={{ fontSize: 11, overflow: "auto" }}>{JSON.stringify(review, null, 2)}</pre>
+        <div style={{ marginTop: 16, display:"grid", gap:12 }}>
+          <h3 style={{ margin: 0 }}>Review bundle</h3>
+          {review.verification && (
+            <div style={{ background:"#0f1620", border:"1px solid #1e2f44", borderRadius:10, padding:12 }}>
+              <div style={{ fontSize:12, fontWeight:700 }}>Verification</div>
+              <div style={{ fontSize:12, marginTop:4, color: review.verification.passed ? "#6fdc8c" : "#ff8a8a" }}>{review.verification.passed ? "✓ Passed" : "✗ Failed"} — length {review.verification.length}</div>
+              {(review.verification.errors||[]).length>0 && <ul style={{ fontSize:11, color:"#ff8a8a", marginTop:6 }}>{review.verification.errors.map((e:string,i:number)=><li key={i}>{e}</li>)}</ul>}
+              {(review.verification.warnings||[]).length>0 && <ul style={{ fontSize:11, color:"#ffcf66", marginTop:6 }}>{review.verification.warnings.map((e:string,i:number)=><li key={i}>{e}</li>)}</ul>}
+            </div>
+          )}
+          {review.diff && (
+            <PrettyJSON data={review.diff} title="Diff" collapsible />
+          )}
+          {review.variants && review.variants.length>0 ? (
+            <div>
+              <h4 style={{ fontSize:13, margin:"0 0 8px" }}>Variants — formatted preview</h4>
+              <VariantsGrid variants={review.variants} />
+            </div>
+          ) : (
+            <div style={{ fontSize:12, opacity:0.6 }}>No variants in review bundle yet.</div>
+          )}
+          <details style={{ background:"#111", padding:10, borderRadius:8 }}>
+            <summary style={{ cursor:"pointer", fontSize:12, color:"#8FA0B8" }}>Raw review JSON (collapsed)</summary>
+            <pre style={{ fontSize: 11, overflow: "auto", whiteSpace:"pre-wrap", wordBreak:"break-word", marginTop:8 }}>{JSON.stringify(review, null, 2)}</pre>
+          </details>
         </div>
       )}
     </div>
