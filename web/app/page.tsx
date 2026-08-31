@@ -2,9 +2,10 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getToken, authHeaders, apiUrl } from "../lib/auth";
+import { getToken, authHeaders, apiUrl, clearToken } from "../lib/auth";
 import { StatusBadge } from "../components/StatusBadge";
 import { PipelineStepper } from "../components/PipelineStepper";
+import { Skeleton, CardSkeleton } from "../components/Skeleton";
 
 type Item = { id: string; title?: string; status?: string; slug?: string };
 type Project = { id: string; name?: string; slug?: string };
@@ -37,7 +38,7 @@ export default function Page() {
 
   const fetchProjects = useCallback(async () => {
     const r = await fetch(apiUrl("/api/v1/projects/"), { headers: { ...authHeaders() } });
-    if (r.status === 401) { router.replace("/login"); throw new Error("unauthorized"); }
+    if (r.status === 401) { clearToken(); router.replace("/login"); throw new Error("unauthorized"); }
     const d = await r.json().catch(() => ({ items: [] }));
     const list: Project[] = d.items || d || [];
     setProjects(Array.isArray(list) ? list : []);
@@ -50,7 +51,7 @@ export default function Page() {
 
   const fetchItems = useCallback(async () => {
     const r = await fetch(apiUrl("/api/v1/content-items/"), { headers: { ...authHeaders() } });
-    if (r.status === 401) { router.replace("/login"); throw new Error("unauthorized"); }
+    if (r.status === 401) { clearToken(); router.replace("/login"); throw new Error("unauthorized"); }
     const d = await r.json();
     setItems(d.items || []);
   }, [router]);
@@ -120,8 +121,8 @@ export default function Page() {
     } finally { setSubmitting(false); }
   }
 
-  if (loading) return <p>Loading…</p>;
-  if (err) return <p style={{ color: "#ff6b6b" }}>Error: {err}</p>;
+  if (loading) return <div style={{ display: "grid", gap: 10 }}><Skeleton style={{ height: 28, width: 180 }} /><CardSkeleton /><CardSkeleton /><CardSkeleton /></div>;
+  if (err) return <div style={{ background: "rgba(255,60,60,.12)", border: "1px solid rgba(255,60,60,.3)", padding: 16, borderRadius: 12, color: "#ff8a8a" }}><strong>Failed to load</strong><div style={{ fontSize: 12, marginTop: 6 }}>{err}</div><div style={{ marginTop: 12, display: "flex", gap: 8 }}><button onClick={() => location.reload()} style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#cfe0ff", borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Retry</button><button onClick={() => { clearToken(); router.replace("/login"); }} style={{ background: "#33151a", border: "1px solid #5a2a33", color: "#ff8a8a", borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Re-login</button></div></div>;
 
   return (
     <div>

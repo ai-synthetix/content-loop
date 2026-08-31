@@ -1,47 +1,26 @@
-"use client";
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { getToken, clearToken, apiUrl, authHeaders } from "../lib/auth";
-import { useRouter } from "next/navigation";
+import type { Metadata } from "next";
+import { Header } from "../components/Header";
+import { ErrorBoundary } from "../components/ErrorBoundary";
+
+export const metadata: Metadata = {
+  title: { default: "Content Loop", template: "%s — Content Loop" },
+  description: "Content Loop — editorial pipeline from idea to reflected learnings. Human gates, AI drafts, pluggable channels.",
+  metadataBase: new URL("http://localhost:3000"),
+  openGraph: { title: "Content Loop", description: "Editorial pipeline: idea → brief → draft → review → publish → measure → reflect.", type: "website" },
+  robots: { index: true, follow: true },
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const [email, setEmail] = useState<string | null>(null);
-  const router = useRouter();
-
-  useEffect(() => {
-    const t = getToken();
-    if (!t) return;
-    fetch(apiUrl("/me"), { headers: { ...authHeaders() } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d?.email) setEmail(d.email); })
-      .catch(() => {});
-  }, []);
-
-  function logout() {
-    clearToken();
-    setEmail(null);
-    router.push("/login");
-  }
-
   return (
     <html lang="en">
+      <head>
+        <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+      </head>
       <body style={{ fontFamily: "system-ui, sans-serif", margin: 0, background: "#0a0a0a", color: "#eee" }}>
-        <header style={{ padding: "12px 20px", borderBottom: "1px solid #222", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
-            <Link href="/" style={{ color: "#eee", textDecoration: "none" }}><strong>Content Loop</strong></Link>
-            <nav style={{ display: "flex", gap: 12, fontSize: 13 }}>
-              <Link href="/" style={{ color: "#8fb8ff", textDecoration: "none" }}>Queue</Link>
-              <Link href="/projects" style={{ color: "#8fb8ff", textDecoration: "none" }}>Projects</Link>
-              <Link href="/settings/channels" style={{ color: "#8fb8ff", textDecoration: "none" }}>Channels</Link>
-              <Link href="/guide" style={{ color: "#8fb8ff", textDecoration: "none" }}>Guide</Link>
-            </nav>
-          </div>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", fontSize: 13 }}>
-            {email ? <span style={{ opacity: 0.7 }}>{email}</span> : <Link href="/login" style={{ color: "#7eb8ff" }}>Sign in</Link>}
-            {email && <button onClick={logout} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #333", background: "#1a1a1a", color: "#eee", cursor: "pointer" }}>Logout</button>}
-          </div>
-        </header>
-        <main style={{ padding: 20, maxWidth: 1100, margin: "0 auto" }}>{children}</main>
+        <Header />
+        <main style={{ padding: 20, maxWidth: 1100, margin: "0 auto" }}>
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </main>
       </body>
     </html>
   );

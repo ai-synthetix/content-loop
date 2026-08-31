@@ -18,3 +18,7 @@ export function apiUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
   return `${base}${path}`;
 }
+export function handle401(router: { replace: (url: string) => void }) {
+  clearToken();
+  router.replace("/login");
+}

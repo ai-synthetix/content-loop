@@ -134,6 +134,24 @@ export default function GuidePage() {
         </div>
       </div>
 
+      {/* Screenshots placeholders */}
+      <h2 style={{ fontSize: 16, margin: "24px 0 10px" }}>Screenshots</h2>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 }}>
+        {[
+          { title: "Queue", desc: "Review queue with + New item", file: "queue.png" },
+          { title: "Item detail", desc: "Generate → Review → Approve → Publish", file: "item-detail.png" },
+          { title: "Channels", desc: "Encrypted channel configs + Test", file: "channels.png" },
+        ].map(s => (
+          <div key={s.file} style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 12 }}>
+            <div style={{ background: "#0b111a", border: "1px dashed #2a3a52", borderRadius: 10, height: 140, display: "grid", placeItems: "center", color: "#5a6b86", fontSize: 11, textAlign: "center", padding: 12 }}>
+              <div>📸 {s.file}<br /><span style={{ opacity: 0.7 }}>Drop real screenshot to web/public/{s.file}</span><br /><span style={{ fontSize: 10, opacity: 0.5 }}>Shown as placeholder until image is added</span></div>
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 12, color: "#cfe0ff", marginTop: 8 }}>{s.title}</div>
+            <div style={{ fontSize: 11, color: "#8FA0B8" }}>{s.desc}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Pluggability */}
       <h2 style={{ fontSize: 16, margin: "24px 0 10px" }}>Channels are pluggable — the <code style={{ background: "#0b1420", padding: "2px 6px", borderRadius: 6, fontSize: 12 }}>Publisher</code> interface</h2>
       <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 14 }}>

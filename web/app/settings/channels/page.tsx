@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getToken, authHeaders, apiUrl } from "../../../lib/auth";
+import { getToken, authHeaders, apiUrl, clearToken } from "../../../lib/auth";
+import { TableSkeleton, Skeleton } from "../../../components/Skeleton";
 
 type Channel = {
   id: string;
@@ -37,7 +38,7 @@ export default function ChannelsPage() {
         fetch(apiUrl("/api/v1/channels/"), { headers: { ...authHeaders() } }),
         fetch(apiUrl("/api/v1/projects/"), { headers: { ...authHeaders() } }),
       ]);
-      if (cr.status === 401 || pr.status === 401) { router.replace("/login"); throw new Error("unauthorized"); }
+      if (cr.status === 401 || pr.status === 401) { clearToken(); router.replace("/login"); throw new Error("unauthorized"); }
       const d = await cr.json();
       if (!cr.ok) throw new Error(d.error || String(cr.status));
       setChannels(d.items || []);
@@ -89,7 +90,7 @@ export default function ChannelsPage() {
       ? '{\n  "base_url": "https://pattayadom.example.com",\n  "api_key": "secret",\n  "mapping": {"title":"title"} \n}'
       : '{\n  "base_url": "https://example.com/api",\n  "api_key": "secret"\n}';
 
-  if (loading) return <p>Loading channels…</p>;
+  if (loading) return <div style={{display:"grid",gap:10}}><Skeleton style={{height:28,width:160}}/><TableSkeleton rows={3}/></div>;
 
   return (
     <div>

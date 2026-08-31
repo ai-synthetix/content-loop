@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getToken, apiUrl, authHeaders } from "../../../lib/auth";
+import { getToken, apiUrl, authHeaders, clearToken } from "../../../lib/auth";
+import { Skeleton, CardSkeleton } from "../../../components/Skeleton";
 
 type Channel = { id: string; type: string; name: string; project_id?: string | null; status: string };
 
@@ -16,10 +17,14 @@ export default function ProjectDetail() {
   async function load() {
     const token = getToken();
     if (!token) { router.replace("/login"); return; }
-    const [pr, ch] = await Promise.all([
-      fetch(apiUrl(`/api/v1/projects/${id}`), { headers: { ...authHeaders() } }).then(r => r.json()),
-      fetch(apiUrl("/api/v1/channels/"), { headers: { ...authHeaders() } }).then(r => r.json()),
+
+    const [prRes, chRes] = await Promise.all([
+      fetch(apiUrl(`/api/v1/projects/${id}`), { headers: { ...authHeaders() } }),
+      fetch(apiUrl("/api/v1/channels/"), { headers: { ...authHeaders() } }),
     ]);
+    if (prRes.status === 401 || chRes.status === 401) { clearToken(); router.replace("/login"); return; }
+    const pr = await prRes.json();
+    const ch = await chRes.json();
     setProject(pr);
     const items: Channel[] = ch.items || [];
     setChannels(items);
@@ -38,6 +43,7 @@ export default function ProjectDetail() {
       else body.project_id = null;
       const r = await fetch(apiUrl(`/api/v1/channels/${channelId}`), { method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(body) });
       const d = await r.json();
+      if (r.status === 401) { clearToken(); router.replace("/login"); return; }
       if (!r.ok) throw new Error(d.error || String(r.status));
       const ns = new Set(assigned);
       if (checked) ns.add(channelId); else ns.delete(channelId);
@@ -47,7 +53,7 @@ export default function ProjectDetail() {
     } catch (e: any) { setMsg(e.message); }
   }
 
-  if (!project) return <p>Loading project…</p>;
+  if (!project) return <div style={{display:"grid",gap:12}}><CardSkeleton /></div>;
 
   return (
     <div>

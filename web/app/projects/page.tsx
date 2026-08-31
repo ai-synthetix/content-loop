@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getToken, authHeaders, apiUrl } from "../../lib/auth";
+import { getToken, authHeaders, apiUrl, clearToken } from "../../lib/auth";
+import { TableSkeleton, Skeleton } from "../../components/Skeleton";
 
 type Project = {
   id: string;
@@ -61,7 +62,7 @@ export default function ProjectsPage() {
       const token = getToken();
       if (!token) { router.replace("/login"); return; }
       const r = await fetch(apiUrl("/api/v1/projects/"), { headers: { ...authHeaders() } });
-      if (r.status === 401) { router.replace("/login"); throw new Error("unauthorized"); }
+      if (r.status === 401) { clearToken(); router.replace("/login"); throw new Error("unauthorized"); }
       const d = await r.json().catch(() => ({ items: [] }));
       if (!r.ok) throw new Error(d.error || `failed ${r.status}`);
       const list: Project[] = d.items || [];
@@ -166,7 +167,7 @@ export default function ProjectsPage() {
     } catch (ex: any) { setErr(ex.message); }
   }
 
-  if (loading) return <p>Loading projects…</p>;
+  if (loading) return <div style={{ display:"grid", gap:10 }}><Skeleton style={{height:28,width:180}}/><TableSkeleton rows={4}/></div>;
 
   return (
     <div>
