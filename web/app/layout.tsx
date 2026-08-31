@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getToken, clearToken, apiUrl, authHeaders } from "../../lib/auth";
+import { getToken, clearToken, apiUrl, authHeaders } from "../lib/auth";
 import { useRouter } from "next/navigation";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
