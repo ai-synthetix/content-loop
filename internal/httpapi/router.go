@@ -11,7 +11,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 
+	"github.com/ai-synthetix/content-loop/internal/ai"
 	"github.com/ai-synthetix/content-loop/internal/auth"
+	"github.com/ai-synthetix/content-loop/internal/domain"
 	"github.com/ai-synthetix/content-loop/internal/store"
 )
 
@@ -26,12 +28,15 @@ type Server struct {
 	JWTSecret      string
 	GoogleClientID string
 	Verifier       *auth.Verifier
+	AI             *ai.Provider
+	Gen            *domain.GenerationService
 }
 
 type Config struct {
 	Store          *store.Store
 	JWTSecret      string
 	GoogleClientID string
+	AI             *ai.Provider
 }
 
 // NewRouter builds router without auth config (backward compat, unauthenticated).
@@ -40,6 +45,14 @@ func NewRouter() http.Handler {
 }
 
 func NewRouterWithConfig(cfg Config) http.Handler {
+	provider := cfg.AI
+	if provider == nil {
+		provider = ai.NewFromEnv()
+	}
+	var gen *domain.GenerationService
+	if cfg.Store != nil {
+		gen = domain.NewGenerationService(cfg.Store, provider)
+	}
 	s := &Server{
 		projects:       make(map[string]map[string]any),
 		contentItems:   make(map[string]map[string]any),
@@ -48,6 +61,8 @@ func NewRouterWithConfig(cfg Config) http.Handler {
 		JWTSecret:      cfg.JWTSecret,
 		GoogleClientID: cfg.GoogleClientID,
 		Verifier:       &auth.Verifier{ClientID: cfg.GoogleClientID},
+		AI:             provider,
+		Gen:            gen,
 	}
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -82,6 +97,9 @@ func NewRouterWithConfig(cfg Config) http.Handler {
 				r.Post("/{id}/versions", s.createVersion)
 				r.Get("/{id}/approvals", s.listApprovals)
 				r.Post("/{id}/approvals", s.createApproval)
+				r.Post("/{id}/brief", s.handleBuildBrief)
+				r.Post("/{id}/generate", s.handleGenerate)
+				r.Get("/{id}/review", s.handleReview)
 			})
 			r.Route("/publications", func(r chi.Router) {
 				r.Get("/", s.listPublications)

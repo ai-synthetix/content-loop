@@ -8,6 +8,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 
+	"github.com/ai-synthetix/content-loop/internal/ai"
 	"github.com/ai-synthetix/content-loop/internal/httpapi"
 	"github.com/ai-synthetix/content-loop/internal/store"
 )
@@ -51,6 +52,7 @@ func main() {
 		Store:          st,
 		JWTSecret:      jwtSecret,
 		GoogleClientID: googleClientID,
+		AI:             ai.NewFromEnv(),
 	})
 	log.Printf("content-loop api listening on :%s (db=%v google_client_id_set=%v)", port, st != nil, googleClientID != "")
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
