@@ -1,28 +1,40 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getToken, authHeaders, apiUrl } from "../lib/auth";
 
 type Item = { id: string; title?: string; status?: string; slug?: string };
 
 export default function Page() {
+  const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
-  const api = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${api}/api/v1/content-items/`)
-      .then((r) => r.json())
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+    fetch(apiUrl("/api/v1/content-items/"), { headers: { ...authHeaders() } })
+      .then((r) => {
+        if (r.status === 401) { router.replace("/login"); throw new Error("unauthorized"); }
+        return r.json();
+      })
       .then((d) => setItems(d.items || []))
-      .catch(() => setItems([]))
+      .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
-  }, [api]);
+  }, [router]);
 
   if (loading) return <p>Loading…</p>;
+  if (err) return <p style={{ color: "#ff6b6b" }}>Error: {err}</p>;
 
   return (
     <div>
       <h1 style={{ fontSize: 22 }}>Review Queue</h1>
-      <p style={{ opacity: 0.7 }}>Stub list — GET /api/v1/content-items</p>
+      <p style={{ opacity: 0.7 }}>GET /api/v1/content-items (owner filtered)</p>
       {items.length === 0 ? (
         <p style={{ opacity: 0.6 }}>No items yet. Create one via API: POST /api/v1/content-items</p>
       ) : (

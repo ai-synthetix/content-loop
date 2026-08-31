@@ -23,21 +23,33 @@ const (
 	StatusReflected         Status = "reflected"
 )
 
+// User is the owner identity (Google OAuth).
+type User struct {
+	ID        string    `db:"id" json:"id"`
+	Email     string    `db:"email" json:"email"`
+	GoogleSub string    `db:"google_sub" json:"google_sub"`
+	Name      *string   `db:"name" json:"name"`
+	AvatarURL *string   `db:"avatar_url" json:"avatar_url"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
 // Project owns editorial policy.
 type Project struct {
-	ID        string    `db:"id" json:"id"`
-	Name      string    `db:"name" json:"name"`
-	Slug      string    `db:"slug" json:"slug"`
-	Channels  JSON      `db:"channels" json:"channels"`   // JSON array
-	Languages JSON      `db:"languages" json:"languages"` // JSON array
-	Policy    JSON      `db:"policy" json:"policy"`       // JSON object
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID          string    `db:"id" json:"id"`
+	OwnerUserID *string   `db:"owner_user_id" json:"owner_user_id"`
+	Name        string    `db:"name" json:"name"`
+	Slug        string    `db:"slug" json:"slug"`
+	Channels    JSON      `db:"channels" json:"channels"`   // JSON array
+	Languages   JSON      `db:"languages" json:"languages"` // JSON array
+	Policy      JSON      `db:"policy" json:"policy"`       // JSON object
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // ContentItem is the canonical editorial intent.
 type ContentItem struct {
 	ID          string     `db:"id" json:"id"`
+	OwnerUserID *string    `db:"owner_user_id" json:"owner_user_id"`
 	ProjectID   string     `db:"project_id" json:"project_id"`
 	Title       string     `db:"title" json:"title"`
 	Slug        string     `db:"slug" json:"slug"`
@@ -51,9 +63,10 @@ type ContentItem struct {
 
 // ContentVersion is immutable.
 type ContentVersion struct {
-	ID           string    `db:"id" json:"id"`
-	ContentItemID string   `db:"content_item_id" json:"content_item_id"`
-	VersionNo    int       `db:"version_no" json:"version_no"`
+	ID            string    `db:"id" json:"id"`
+	OwnerUserID   *string   `db:"owner_user_id" json:"owner_user_id"`
+	ContentItemID string    `db:"content_item_id" json:"content_item_id"`
+	VersionNo     int       `db:"version_no" json:"version_no"`
 	Title        string    `db:"title" json:"title"`
 	Excerpt      *string   `db:"excerpt" json:"excerpt"`
 	BodyMarkdown string    `db:"body_markdown" json:"body_markdown"`
@@ -69,6 +82,7 @@ type ContentVersion struct {
 // ChannelVariant is a rendering of a ContentVersion for a specific channel.
 type ChannelVariant struct {
 	ID               string    `db:"id" json:"id"`
+	OwnerUserID      *string   `db:"owner_user_id" json:"owner_user_id"`
 	ContentItemID    string    `db:"content_item_id" json:"content_item_id"`
 	ContentVersionID string    `db:"content_version_id" json:"content_version_id"`
 	Channel          string    `db:"channel" json:"channel"`
@@ -80,6 +94,7 @@ type ChannelVariant struct {
 // Approval records a human decision.
 type Approval struct {
 	ID            string    `db:"id" json:"id"`
+	OwnerUserID   *string   `db:"owner_user_id" json:"owner_user_id"`
 	ContentItemID string    `db:"content_item_id" json:"content_item_id"`
 	VersionID     *string   `db:"version_id" json:"version_id"`
 	Decision      string    `db:"decision" json:"decision"` // approve | edit | reject | changes_requested
@@ -92,6 +107,7 @@ type Approval struct {
 // Publication tracks delivery to a channel.
 type Publication struct {
 	ID               string     `db:"id" json:"id"`
+	OwnerUserID      *string    `db:"owner_user_id" json:"owner_user_id"`
 	ContentItemID    string     `db:"content_item_id" json:"content_item_id"`
 	ChannelVariantID string     `db:"channel_variant_id" json:"channel_variant_id"`
 	Adapter          string     `db:"adapter" json:"adapter"`
@@ -108,6 +124,7 @@ type Publication struct {
 // MetricSnapshot stores observed metrics at a point in time.
 type MetricSnapshot struct {
 	ID            string    `db:"id" json:"id"`
+	OwnerUserID   *string   `db:"owner_user_id" json:"owner_user_id"`
 	PublicationID string    `db:"publication_id" json:"publication_id"`
 	Metrics       JSON      `db:"metrics" json:"metrics"` // JSON
 	CapturedAt    time.Time `db:"captured_at" json:"captured_at"`
@@ -117,6 +134,7 @@ type MetricSnapshot struct {
 // Reflection holds structured post-publish learnings.
 type Reflection struct {
 	ID            string    `db:"id" json:"id"`
+	OwnerUserID   *string   `db:"owner_user_id" json:"owner_user_id"`
 	ContentItemID string    `db:"content_item_id" json:"content_item_id"`
 	Observation   string    `db:"observation" json:"observation"`
 	Confidence    string    `db:"confidence" json:"confidence"` // low|medium|high
@@ -128,8 +146,9 @@ type Reflection struct {
 
 // Source is an evidence URL/document.
 type Source struct {
-	ID         string     `db:"id" json:"id"`
-	URL        string     `db:"url" json:"url"`
+	ID          string     `db:"id" json:"id"`
+	OwnerUserID *string    `db:"owner_user_id" json:"owner_user_id"`
+	URL         string     `db:"url" json:"url"`
 	Title      *string    `db:"title" json:"title"`
 	CheckedAt  *time.Time `db:"checked_at" json:"checked_at"`
 	ClaimsJSON JSON       `db:"claims_json" json:"claims_json"` // JSON
@@ -139,6 +158,7 @@ type Source struct {
 // AuditEvent is the append-only log.
 type AuditEvent struct {
 	ID            string    `db:"id" json:"id"`
+	OwnerUserID   *string   `db:"owner_user_id" json:"owner_user_id"`
 	ContentItemID *string   `db:"content_item_id" json:"content_item_id"`
 	Actor         string    `db:"actor" json:"actor"`
 	Action        string    `db:"action" json:"action"`

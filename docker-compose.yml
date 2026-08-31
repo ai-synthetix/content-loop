@@ -28,6 +28,8 @@ services:
     environment:
       PORT: ${PORT:-8080}
       DATABASE_URL: ${DATABASE_URL:-contentloop:contentloop@tcp(mysql:3306)/content_loop?parseTime=true&multiStatements=true&charset=utf8mb4}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me-for-local}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       FAMILYOS_BASE_URL: ${FAMILYOS_BASE_URL:-}
       FAMILYOS_API_KEY: ${FAMILYOS_API_KEY:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
@@ -44,6 +46,7 @@ services:
       - api
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     ports:
       - "3000:3000"
     restart: unless-stopped

@@ -1,19 +1,25 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { getToken, apiUrl, authHeaders } from "../../../lib/auth";
 
 export default function ItemDetail() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [item, setItem] = useState<any>(null);
-  const api = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
   useEffect(() => {
     if (!id) return;
-    fetch(`${api}/api/v1/content-items/${id}`)
-      .then((r) => r.json())
+    const token = getToken();
+    if (!token) { router.replace("/login"); return; }
+    fetch(apiUrl(`/api/v1/content-items/${id}`), { headers: { ...authHeaders() } })
+      .then((r) => {
+        if (r.status === 401) { router.replace("/login"); throw new Error("unauthorized"); }
+        return r.json();
+      })
       .then(setItem)
       .catch(() => setItem({ error: "not found" }));
-  }, [id, api]);
+  }, [id, router]);
 
   if (!item) return <p>Loading…</p>;
   return (
