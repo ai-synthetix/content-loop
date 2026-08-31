@@ -1,11 +1,20 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getToken, authHeaders, apiUrl } from "../lib/auth";
 
 type Item = { id: string; title?: string; status?: string; slug?: string };
 type Project = { id: string; name?: string; slug?: string };
+
+function slugify(s: string) {
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\u00C0-\u024F\u0400-\u04FF]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "untitled";
+}
 
 export default function Page() {
   const router = useRouter();
@@ -14,34 +23,147 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
+  // modal state
+  const [showModal, setShowModal] = useState(false);
+  const [title, setTitle] = useState("");
+  const [slug, setSlug] = useState("");
+  const [slugDirty, setSlugDirty] = useState(false);
+  const [brief, setBrief] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formErr, setFormErr] = useState<string | null>(null);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectSlug, setNewProjectSlug] = useState("");
+  const [newProjectErr, setNewProjectErr] = useState<string | null>(null);
+  const [newProjectSaving, setNewProjectSaving] = useState(false);
+
+  const fetchProjects = useCallback(async () => {
+    const r = await fetch(apiUrl("/api/v1/projects/"), { headers: { ...authHeaders() } });
+    if (r.status === 401) { router.replace("/login"); throw new Error("unauthorized"); }
+    const d = await r.json().catch(() => ({ items: [] }));
+    const list: Project[] = d.items || d || [];
+    setProjects(Array.isArray(list) ? list : []);
+    if (list.length > 0 && !projectId) {
+      const first = (list as Project[])[0];
+      if (first?.id) setProjectId(first.id);
+    }
+    return list;
+  }, [router, projectId]);
+
+  const fetchItems = useCallback(async () => {
+    const r = await fetch(apiUrl("/api/v1/content-items/"), { headers: { ...authHeaders() } });
+    if (r.status === 401) { router.replace("/login"); throw new Error("unauthorized"); }
+    const d = await r.json();
+    setItems(d.items || []);
+  }, [router]);
+
   useEffect(() => {
     const token = getToken();
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
-    Promise.all([
-      fetch(apiUrl("/api/v1/content-items/"), { headers: { ...authHeaders() } }).then(r => {
-        if (r.status === 401) { router.replace("/login"); throw new Error("unauthorized"); }
-        return r.json();
-      }),
-      fetch(apiUrl("/api/v1/projects/"), { headers: { ...authHeaders() } }).then(r => r.json()).catch(() => ({ items: [] })),
-    ])
-      .then(([dItems, dProjects]) => {
-        setItems(dItems.items || []);
-        setProjects(dProjects.items || []);
-      })
+    if (!token) { router.replace("/login"); return; }
+    Promise.all([fetchItems(), fetchProjects()])
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
-  }, [router]);
+  }, [router, fetchItems, fetchProjects]);
+
+  function onTitleChange(v: string) {
+    setTitle(v);
+    if (!slugDirty) setSlug(slugify(v));
+  }
+
+  async function handleCreateProjectInline() {
+    setNewProjectErr(null);
+    const name = newProjectName.trim();
+    if (!name) { setNewProjectErr("Название проекта обязательно"); return; }
+    const s = (newProjectSlug.trim() ? slugify(newProjectSlug) : slugify(name));
+    setNewProjectSaving(true);
+    try {
+      const r = await fetch(apiUrl("/api/v1/projects/"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ name, slug: s, channels: [], languages: ["ru"], policy: {} }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `create project failed ${r.status}`);
+      const created: Project = d;
+      setProjects(prev => [...prev, created]);
+      setProjectId(created.id);
+      setCreatingProject(false);
+      setNewProjectName(""); setNewProjectSlug("");
+    } catch (e: any) {
+      setNewProjectErr(e.message);
+    } finally { setNewProjectSaving(false); }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setFormErr(null);
+    if (!title.trim()) { setFormErr("Title is required"); return; }
+    if (!projectId) { setFormErr("Select a project (or create one)"); return; }
+    const finalSlug = slug.trim() ? slugify(slug) : slugify(title);
+    setSubmitting(true);
+    try {
+      const res = await fetch(apiUrl("/api/v1/content-items/"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          title: title.trim(),
+          slug: finalSlug,
+          brief: { raw: brief.trim() },
+          project_id: projectId,
+          status: "idea",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `create failed ${res.status}`);
+      const id = data.id as string;
+      if (id) {
+        // auto build brief / generate (best-effort, don't block on failure)
+        try {
+          const r2 = await fetch(apiUrl(`/api/v1/content-items/${id}/brief`), {
+            method: "POST", headers: { ...authHeaders() },
+          });
+          if (!r2.ok) {
+            // fallback to generate full pipeline
+            await fetch(apiUrl(`/api/v1/content-items/${id}/generate`), {
+              method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+              body: JSON.stringify({}),
+            }).catch(() => {});
+          }
+        } catch {}
+        try {
+          // also kick generate in background (if brief endpoint already did scaffold, generate will draft)
+          await fetch(apiUrl(`/api/v1/content-items/${id}/generate`), {
+            method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({}),
+          }).catch(() => {});
+        } catch {}
+      }
+      await fetchItems();
+      setShowModal(false);
+      setTitle(""); setSlug(""); setSlugDirty(false); setBrief("");
+    } catch (e: any) {
+      setFormErr(e.message);
+    } finally { setSubmitting(false); }
+  }
 
   if (loading) return <p>Loading…</p>;
   if (err) return <p style={{ color: "#ff6b6b" }}>Error: {err}</p>;
 
   return (
     <div>
-      <h1 style={{ fontSize: 22 }}>Review Queue</h1>
-      <p style={{ opacity: 0.7, fontSize: 12 }}>GET /api/v1/content-items (owner filtered) — projects linked to channels via Settings → Channels.</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 22, margin: 0 }}>Review Queue</h1>
+          <p style={{ opacity: 0.7, fontSize: 12, margin: "4px 0 0" }}>GET /api/v1/content-items (owner filtered) — projects linked to channels via Settings → Channels.</p>
+        </div>
+        <button
+          onClick={() => { setFormErr(null); setShowModal(true); if (projects.length===0) fetchProjects().catch(()=>{}); }}
+          style={{ background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", boxShadow: "0 4px 16px rgba(61,141,255,.35)" }}
+        >
+          + New item
+        </button>
+      </div>
 
       {projects.length > 0 && (
         <div style={{ marginTop: 16, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 10, padding: 12 }}>
@@ -78,6 +200,97 @@ export default function Page() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {showModal && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", zIndex: 50, padding: 20 }}
+        >
+          <div style={{ width: "100%", maxWidth: 520, background: "#111824", border: "1px solid #1E2F44", borderRadius: 18, padding: 24, boxShadow: "0 20px 60px rgba(0,0,0,.55)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <h2 style={{ margin: 0, fontSize: 18 }}>New content item</h2>
+              <button onClick={() => setShowModal(false)} style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#8FA0B8", borderRadius: 8, width: 32, height: 32, cursor: "pointer" }}>✕</button>
+            </div>
+            <p style={{ margin: "0 0 14px", color: "#8FA0B8", fontSize: 12 }}>Создаст запись со статусом <code style={{ background: "#0B1420", border: "1px solid #1E2F44", padding: "1px 6px", borderRadius: 6 }}>idea</code> и автоматически сгенерирует brief.</p>
+
+            <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 12, color: "#8FA0B8" }}>Title *</span>
+                <input value={title} onChange={e => onTitleChange(e.target.value)} placeholder="Например: Как выбрать район в Паттайе" required
+                  style={{ background: "#0B1420", border: "1px solid #1E2F44", borderRadius: 10, padding: "10px 12px", color: "#eee", outline: "none" }} />
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 12, color: "#8FA0B8" }}>Slug</span>
+                <input value={slug} onChange={e => { setSlug(e.target.value); setSlugDirty(true); }} placeholder="auto from title"
+                  style={{ background: "#0B1420", border: "1px solid #1E2F44", borderRadius: 10, padding: "10px 12px", color: "#eee", outline: "none" }} />
+                <span style={{ fontSize: 11, opacity: 0.45 }}>auto-generated, editable</span>
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 12, color: "#8FA0B8" }}>Brief</span>
+                <textarea value={brief} onChange={e => setBrief(e.target.value)} rows={4} placeholder="Кратко о чем материал, тезисы, аудитория…"
+                  style={{ background: "#0B1420", border: "1px solid #1E2F44", borderRadius: 10, padding: "10px 12px", color: "#eee", outline: "none", resize: "vertical" }} />
+              </label>
+
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 12, color: "#8FA0B8" }}>Project *</span>
+                {projects.length === 0 ? (
+                  <div style={{ background: "#0B1420", border: "1px solid #3a2d00", borderRadius: 10, padding: 12 }}>
+                    <div style={{ fontSize: 12, color: "#ffb84d", marginBottom: 8 }}>No projects yet — create one first.</div>
+                    {!creatingProject ? (
+                      <button type="button" onClick={() => setCreatingProject(true)} style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#8fb8ff", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontSize: 13 }}>+ Create project</button>
+                    ) : (
+                      <div style={{ display: "grid", gap: 8 }}>
+                        <input value={newProjectName} onChange={e => setNewProjectName(e.target.value)} placeholder="Project name"
+                          style={{ background: "#111824", border: "1px solid #1E2F44", borderRadius: 8, padding: "8px 10px", color: "#eee" }} />
+                        <input value={newProjectSlug} onChange={e => setNewProjectSlug(e.target.value)} placeholder="slug (auto)"
+                          style={{ background: "#111824", border: "1px solid #1E2F44", borderRadius: 8, padding: "8px 10px", color: "#eee" }} />
+                        {newProjectErr && <span style={{ color: "#ff8a8a", fontSize: 12 }}>{newProjectErr}</span>}
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button type="button" disabled={newProjectSaving} onClick={handleCreateProjectInline} style={{ background: "#3D8DFF", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", cursor: "pointer", opacity: newProjectSaving ? 0.6 : 1 }}>{newProjectSaving ? "Creating…" : "Create"}</button>
+                          <button type="button" onClick={() => setCreatingProject(false)} style={{ background: "transparent", border: "1px solid #2a3a52", color: "#8FA0B8", borderRadius: 8, padding: "8px 14px", cursor: "pointer" }}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <select value={projectId} onChange={e => setProjectId(e.target.value)}
+                      style={{ background: "#0B1420", border: "1px solid #1E2F44", borderRadius: 10, padding: "10px 12px", color: "#eee", outline: "none" }}>
+                      {projects.map(p => (
+                        <option key={p.id} value={p.id}>{p.name || p.slug || p.id.slice(0, 8)}</option>
+                      ))}
+                    </select>
+                    {!creatingProject ? (
+                      <button type="button" onClick={() => setCreatingProject(true)} style={{ fontSize: 12, color: "#8fb8ff", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0 }}>+ Create new project</button>
+                    ) : (
+                      <div style={{ background: "#0B1420", border: "1px solid #1E2F44", borderRadius: 10, padding: 12, display: "grid", gap: 8 }}>
+                        <input value={newProjectName} onChange={e => setNewProjectName(e.target.value)} placeholder="Project name"
+                          style={{ background: "#111824", border: "1px solid #1E2F44", borderRadius: 8, padding: "8px 10px", color: "#eee" }} />
+                        <input value={newProjectSlug} onChange={e => setNewProjectSlug(e.target.value)} placeholder="slug (auto)"
+                          style={{ background: "#111824", border: "1px solid #1E2F44", borderRadius: 8, padding: "8px 10px", color: "#eee" }} />
+                        {newProjectErr && <span style={{ color: "#ff8a8a", fontSize: 12 }}>{newProjectErr}</span>}
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button type="button" disabled={newProjectSaving} onClick={handleCreateProjectInline} style={{ background: "#3D8DFF", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", cursor: "pointer", opacity: newProjectSaving ? 0.6 : 1 }}>{newProjectSaving ? "Creating…" : "Create"}</button>
+                          <button type="button" onClick={() => { setCreatingProject(false); setNewProjectErr(null); }} style={{ background: "transparent", border: "1px solid #2a3a52", color: "#8FA0B8", borderRadius: 8, padding: "8px 14px", cursor: "pointer" }}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </label>
+
+              {formErr && <div style={{ background: "rgba(255,90,90,.1)", border: "1px solid rgba(255,90,90,.25)", color: "#FF8A8A", padding: "10px 12px", borderRadius: 10, fontSize: 12 }}>{formErr}</div>}
+
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
+                <button type="button" onClick={() => setShowModal(false)} style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#8FA0B8", borderRadius: 10, padding: "10px 16px", cursor: "pointer" }}>Cancel</button>
+                <button type="submit" disabled={submitting} style={{ background: submitting ? "#2a4a7a" : "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700, cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}>
+                  {submitting ? "Creating…" : "Create & generate brief"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
