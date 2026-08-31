@@ -3,6 +3,8 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getToken, authHeaders, apiUrl } from "../lib/auth";
+import { StatusBadge } from "../components/StatusBadge";
+import { PipelineStepper } from "../components/PipelineStepper";
 
 type Item = { id: string; title?: string; status?: string; slug?: string };
 type Project = { id: string; name?: string; slug?: string };
@@ -151,26 +153,28 @@ export default function Page() {
       )}
 
       {items.length === 0 ? (
-        <p style={{ opacity: 0.6, marginTop: 16 }}>No items yet. Create one via API: POST /api/v1/content-items</p>
+        <div style={{ marginTop: 16, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 18, textAlign: "center" }}>
+          <div style={{ fontSize: 14, color: "#cfe0ff", marginBottom: 6 }}>No items yet</div>
+          <p style={{ opacity: 0.6, fontSize: 12, margin: "0 0 12px" }}>Create your first item (+ New item) or learn the flow in the guide.</p>
+          <Link href="/guide" style={{ background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color: "#fff", borderRadius: 10, padding: "8px 14px", textDecoration: "none", fontWeight: 700, fontSize: 13, display: "inline-block" }}>Open Guide →</Link>
+        </div>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 16 }}>
-          <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #333" }}>
-              <th>Title</th>
-              <th>Status</th>
-              <th>ID</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((it) => (
-              <tr key={it.id} style={{ borderBottom: "1px solid #222" }}>
-                <td><Link href={`/items/${it.id}`} style={{ color: "#7eb8ff" }}>{it.title || it.slug || it.id}</Link></td>
-                <td><span style={{ background: "#222", padding: "2px 8px", borderRadius: 10, fontSize: 12 }}>{it.status || "—"}</span></td>
-                <td style={{ fontSize: 12, opacity: 0.6 }}>{it.id}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
+          {items.map((it) => (
+            <Link key={it.id} href={`/items/${it.id}`} style={{ textDecoration: "none", background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 14, display: "block" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ color: "#cfe0ff", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.title || it.slug || it.id}</div>
+                  <div style={{ fontSize: 11, color: "#5a6b86", marginTop: 2 }}>{it.id}</div>
+                </div>
+                <StatusBadge status={it.status || ""} size={11} />
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <PipelineStepper status={it.status || "idea"} compact />
+              </div>
+            </Link>
+          ))}
+        </div>
       )}
 
       {showModal && (

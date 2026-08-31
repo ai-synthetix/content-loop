@@ -33,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/" style={{ color: "#8fb8ff", textDecoration: "none" }}>Queue</Link>
               <Link href="/projects" style={{ color: "#8fb8ff", textDecoration: "none" }}>Projects</Link>
               <Link href="/settings/channels" style={{ color: "#8fb8ff", textDecoration: "none" }}>Channels</Link>
+              <Link href="/guide" style={{ color: "#8fb8ff", textDecoration: "none" }}>Guide</Link>
             </nav>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center", fontSize: 13 }}>

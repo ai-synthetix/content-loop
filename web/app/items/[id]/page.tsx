@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getToken, apiUrl, authHeaders } from "../../../lib/auth";
+import { StatusBadge } from "../../../components/StatusBadge";
+import { PipelineStepper } from "../../../components/PipelineStepper";
 
 export default function ItemDetail() {
   const { id } = useParams<{ id: string }>();
@@ -73,9 +75,15 @@ export default function ItemDetail() {
   if (!item) return <p>Loading…</p>;
   return (
     <div>
-      <h1 style={{ fontSize: 20 }}>{item.title || item.slug || id}</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <h1 style={{ fontSize: 20, margin: 0 }}>{item.title || item.slug || id}</h1>
+        <StatusBadge status={item.status || ""} />
+      </div>
       {item.project_id && <p style={{ fontSize: 12, opacity: 0.6 }}>Project: <a href={`/projects/${item.project_id}`} style={{ color: "#7eb8ff" }}>{item.project_id}</a></p>}
-      <pre style={{ background: "#111", padding: 12, borderRadius: 8, overflow: "auto", fontSize: 12 }}>{JSON.stringify(item, null, 2)}</pre>
+      <div style={{ marginTop: 10, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 12 }}>
+        <PipelineStepper status={item.status || "idea"} />
+      </div>
+      <pre style={{ background: "#111", padding: 12, borderRadius: 8, overflow: "auto", fontSize: 12, marginTop: 12 }}>{JSON.stringify(item, null, 2)}</pre>
 
       {channels.length > 0 && (
         <div style={{ marginTop: 16, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 10, padding: 12 }}>
