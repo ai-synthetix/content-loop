@@ -16,7 +16,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--default-authentication-plugin=mysql_native_password"]
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
 
   api:
     build:
@@ -33,7 +33,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHANNEL_ID: ${TELEGRAM_CHANNEL_ID:-}
     ports:
-      - "${PORT:-8080}:8080"
+      - "${HOST_PORT:-8081}:${PORT:-8080}"
     restart: unless-stopped
 
   web:
