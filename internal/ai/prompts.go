@@ -1,33 +1,37 @@
 package ai
 
-// Prompts for each pipeline stage.
-// Keep them short and deterministic; model = kimi-k2.5 via opencode-go.
+// Prompts for each pipeline stage — kept SHORT to avoid gateway timeouts.
+const SystemBase = `You are an editorial assistant for Content Loop. Respond in brief language (default ru). Be concise, factual.`
 
-const SystemBase = `You are an editorial assistant for Content Loop. Respond in the language of the user's brief (default ru). Be concise, factual, cite sources with [n].`
+const PromptPlanTopic = `plan_topic: refine title, output JSON {"title":"...","reason":"..."}. Title <80 chars. JSON only.`
 
-const PromptPlanTopic = `plan_topic: Given a content_item title and project policy, propose a refined topic title. Check for duplication hint will be provided. Output JSON: {"title":"...","reason":"..."}. Keep title under 80 chars.`
+const PromptBuildBrief = `build_brief: create scaffold brief JSON. Output JSON only, no fence: {"goal":"...","audience":"...","claims":[{"text":"claim","source":"url or null"}],"sources":["url"],"outline":["H2","H2"]}. JSON only.`
 
-const PromptBuildBrief = `build_brief: Given title, project channels/languages/policy, create a scaffold brief JSON. Output JSON only, no markdown fence: {"goal":"...","audience":"...","claims":[{"text":"claim","source":"url or null"}],"sources":["url"],"outline":["H2","H2"]}. If no real sources, use https://example.com placeholders but mark as placeholder.`
+const PromptDraftCanonical = `draft_canonical: write a short article in markdown, 500-800 words. Return JSON ONLY, no fence, no extra text: {"title":"...","excerpt":"1-2 sentences","body_markdown":"markdown 500-800 words with ## h2, lists, bold, [n] citations","claims":["claim"],"sources":["url"]}. Keep body_markdown concise — 500-800 words max. Respond ONLY with JSON.`
 
-const PromptDraftCanonical = `draft_canonical: You are drafting the canonical markdown body for a content item. Given brief JSON and title, produce JSON ONLY. Respond ONLY with JSON object, no surrounding text, no markdown fences: {"title":"...","excerpt":"1-2 sentences","body_markdown":"markdown 800-3000 chars with h2/h3, lists, bold, links","claims":["claim strings"],"sources":["urls"]}. Claims must appear in body as [n] citations. Body must be valid markdown. Respond ONLY with JSON.`
+const PromptRenderTelegram = `Adapt to Telegram: 4096 chars max, no tables, *bold* _italic_, short paras, CTA. Plain text, <3500 chars.`
 
-const PromptRenderTelegram = `render_variant telegram: Adapt canonical body_markdown to Telegram channel. Telegram limit 4096 chars, no markdown tables, use *bold* and _italic_ where needed, keep links as https URLs, short paragraphs, CTA at end. Output plain text ready to send. Keep under 3500 chars.`
+const PromptRenderFamilyOS = `Adapt to FamilyOS markdown: keep headings/lists/links, add title. Output markdown, <3000 chars.`
 
-const PromptRenderFamilyOS = `render_variant familyos: Adapt canonical body_markdown to FamilyOS (PattayaDom) channel. Produce markdown suitable for FamilyOS API: keep headings, lists, links, add frontmatter-like title, preserve claims. Output markdown.`
+func trunc(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
+}
 
-// Helpers to build user messages
 func UserPlanTopic(title, existingTitles string) string {
-	return "plan_topic input:\ntitle: " + title + "\nexisting_titles_like: " + existingTitles + "\n" + PromptPlanTopic
+	return "plan_topic input:\ntitle: " + trunc(title, 100) + "\nexisting: " + trunc(existingTitles, 300) + "\n" + PromptPlanTopic
 }
 func UserBuildBrief(title, projectJSON, briefHint string) string {
-	return "build_brief input:\ntitle: " + title + "\nproject: " + projectJSON + "\nbrief_hint: " + briefHint + "\n" + PromptBuildBrief
+	return "build_brief input:\ntitle: " + trunc(title, 100) + "\nproject: " + trunc(projectJSON, 400) + "\nbrief_hint: " + trunc(briefHint, 500) + "\n" + PromptBuildBrief
 }
 func UserDraftCanonical(title, briefJSON string) string {
-	return "draft_canonical input:\ntitle: " + title + "\nbrief: " + briefJSON + "\n" + PromptDraftCanonical + "\nIMPORTANT: Respond ONLY with JSON {\"title\",\"excerpt\",\"body_markdown\",\"claims\",\"sources\"} — no fence, no extra text."
+	return "draft_canonical input:\ntitle: " + trunc(title, 100) + "\nbrief: " + trunc(briefJSON, 2000) + "\n" + PromptDraftCanonical
 }
 func UserRenderTelegram(canonicalBody string) string {
-	return "render_variant telegram input:\ncanonical_body:\n" + canonicalBody + "\n" + PromptRenderTelegram
+	return "render telegram input:\n" + trunc(canonicalBody, 2000) + "\n" + PromptRenderTelegram
 }
 func UserRenderFamilyOS(canonicalBody string) string {
-	return "render_variant familyos input:\ncanonical_body:\n" + canonicalBody + "\n" + PromptRenderFamilyOS
+	return "render familyos input:\n" + trunc(canonicalBody, 2000) + "\n" + PromptRenderFamilyOS
 }

@@ -317,19 +317,48 @@ type canonicalDraft struct {
 }
 
 func (g *GenerationService) draftCanonical(ctx context.Context, title string, brief map[string]any) canonicalDraft {
+	// truncate inputs dramatically to avoid gateway timeout (was whole project JSON)
+	if len(title) > 100 {
+		title = string([]rune(title)[:100])
+	}
 	briefJSON, _ := json.Marshal(brief)
-	userMsg := ai.UserDraftCanonical(title, string(briefJSON))
+	bj := string(briefJSON)
+	if len(bj) > 2000 {
+		bj = bj[:2000]
+	}
+	userMsg := ai.UserDraftCanonical(title, bj)
 	resp, err := g.AI.Complete(ctx, ai.SystemBase, userMsg)
 	if err != nil {
-		log.Printf("[generation] draftCanonical Complete error title=%q err=%v", title, err)
-		atomic.AddInt64(&fallbackCanonicalCount, 1)
-	} else {
+		log.Printf("[generation] draftCanonical Complete error title=%q err=%v full_err=%+v", title, err, err)
+		// one retry with even smaller prompt before fallback
+		smallerBrief := bj
+		if len(smallerBrief) > 1000 {
+			smallerBrief = smallerBrief[:1000]
+		}
+		smallTitle := title
+		if len(smallTitle) > 60 {
+			smallTitle = string([]rune(smallTitle)[:60])
+		}
+		smallMsg := ai.UserDraftCanonical(smallTitle, smallerBrief)
+		// short inline prompt override: request even shorter output
+		smallMsg += "\nKeep body_markdown under 800 words, be very concise."
+		log.Printf("[generation] draftCanonical retry with smaller prompt title=%q brief_len=%d", smallTitle, len(smallerBrief))
+		resp2, err2 := g.AI.Complete(ctx, ai.SystemBase, smallMsg)
+		if err2 == nil {
+			resp = resp2
+			err = nil
+			log.Printf("[generation] draftCanonical retry succeeded title=%q resp_len=%d", title, len(resp))
+		} else {
+			log.Printf("[generation] draftCanonical retry also failed title=%q err=%v", title, err2)
+			atomic.AddInt64(&fallbackCanonicalCount, 1)
+		}
+	}
+	if err == nil {
 		if m := tryParseJSON(resp); m != nil {
 			atomic.AddInt64(&aiSuccessCanonicalCount, 1)
 			log.Printf("[generation] draftCanonical AI JSON success title=%q body_len=%d snip=%q", title, len(resp), substr(resp, 200))
 			return mapToCanonical(m, title)
 		}
-		// raw markdown fallback: treat >100 chars as valid body instead of scaffold fallback
 		trimmed := strings.TrimSpace(resp)
 		if len(trimmed) > 100 {
 			log.Printf("[generation] draftCanonical raw markdown fallback title=%q resp_len=%d snip=%q", title, len(trimmed), substr(trimmed, 500))
@@ -353,15 +382,24 @@ func (g *GenerationService) draftCanonical(ctx context.Context, title string, br
 func (g *GenerationService) renderVariants(ctx context.Context, contentItemID, versionID, ownerUserID string, c canonicalDraft) []map[string]any {
 	channels := []string{"telegram", "familyos"}
 	var out []map[string]any
+	// truncate body for variant prompts to avoid timeout
+	shortBody := c.BodyMarkdown
+	if len(shortBody) > 2000 {
+		shortBody = string([]rune(shortBody)[:2000])
+	}
 	for _, ch := range channels {
 		var rendered string
 		var userMsg string
 		if ch == "telegram" {
-			userMsg = ai.UserRenderTelegram(c.BodyMarkdown)
+			userMsg = ai.UserRenderTelegram(shortBody)
 		} else {
-			userMsg = ai.UserRenderFamilyOS(c.BodyMarkdown)
+			userMsg = ai.UserRenderFamilyOS(shortBody)
 		}
-		if resp, err := g.AI.Complete(ctx, ai.SystemBase, userMsg); err == nil && resp != "" {
+		// per-variant timeout so one slow variant doesn't block whole generation
+		vctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		resp, err := g.AI.Complete(vctx, ai.SystemBase, userMsg)
+		cancel()
+		if err == nil && resp != "" {
 			rendered = resp
 		} else {
 			if err != nil {

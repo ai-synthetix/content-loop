@@ -30,14 +30,22 @@ func NewFromEnv() *Provider {
 		BaseURL: base,
 		APIKey:  os.Getenv("OPENCODE_API_KEY"),
 		Model:   modelFromEnv(),
-		Client:  &http.Client{Timeout: 120 * time.Second},
+		Client:  &http.Client{Timeout: 180 * time.Second},
 	}
 }
 
 func modelFromEnv() string {
 	m := os.Getenv("AI_MODEL")
 	if m == "" {
-		m = "kimi-k2.6"
+		m = "mimo-v2.5"
+	}
+	return m
+}
+
+func fallbackModel() string {
+	m := os.Getenv("AI_FALLBACK_MODEL")
+	if m == "" {
+		m = "mimo-v2.5"
 	}
 	return m
 }
@@ -67,8 +75,44 @@ type chatResponse struct {
 }
 
 func (p *Provider) Complete(ctx context.Context, system, user string) (string, error) {
+	// retry with backoff once + fallback model on timeout
+	res, err := p.completeWithModel(ctx, system, user, p.Model)
+	if err == nil {
+		return res, nil
+	}
+	// classify timeout / deadline errors for retry
+	isTimeout := strings.Contains(err.Error(), "deadline") || strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "Client.Timeout") || strings.Contains(err.Error(), "context deadline")
+	if isTimeout {
+		log.Printf("[ai] Complete timeout model=%s err=%v — retrying once with backoff 2s", p.Model, err)
+		select {
+		case <-time.After(2 * time.Second):
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+		res2, err2 := p.completeWithModel(ctx, system, user, p.Model)
+		if err2 == nil {
+			return res2, nil
+		}
+		// try fallback model instantly
+		fm := fallbackModel()
+		if fm != "" && fm != p.Model {
+			log.Printf("[ai] retry with fallback model=%s after primary failed: %v / %v", fm, err, err2)
+			res3, err3 := p.completeWithModel(ctx, system, user, fm)
+			if err3 == nil {
+				log.Printf("[ai] fallback model %s succeeded resp_len=%d", fm, len(res3))
+				return res3, nil
+			}
+			log.Printf("[ai] fallback model %s also failed: %v", fm, err3)
+			return "", fmt.Errorf("primary %s timeout (%v; retry %v), fallback %s failed: %w", p.Model, err, err2, fm, err3)
+		}
+		return "", fmt.Errorf("ai timeout after retry: %w (first: %v)", err2, err)
+	}
+	return "", err
+}
+
+func (p *Provider) completeWithModel(ctx context.Context, system, user, model string) (string, error) {
 	if p.IsMock() {
-		log.Printf("[ai] Complete mock mode model=%s user_len=%d", p.Model, len(user))
+		log.Printf("[ai] Complete mock mode model=%s user_len=%d", model, len(user))
 		return p.mockComplete(system, user), nil
 	}
 	msgs := []message{}
@@ -76,20 +120,20 @@ func (p *Provider) Complete(ctx context.Context, system, user string) (string, e
 		msgs = append(msgs, message{Role: "system", Content: system})
 	}
 	msgs = append(msgs, message{Role: "user", Content: user})
-	reqBody := chatRequest{Model: p.Model, Messages: msgs, Temp: 0.7}
+	reqBody := chatRequest{Model: model, Messages: msgs, Temp: 0.7}
 	b, _ := json.Marshal(reqBody)
 	endpoint := strings.TrimRight(p.BaseURL, "/") + "/chat/completions"
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(b))
 	if err != nil {
-		log.Printf("[ai] http new request error: %v endpoint=%s model=%s", err, endpoint, p.Model)
+		log.Printf("[ai] http new request error: %v endpoint=%s model=%s", err, endpoint, model)
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.APIKey)
-	log.Printf("[ai] POST %s model=%s msgs=%d", endpoint, p.Model, len(msgs))
+	log.Printf("[ai] POST %s model=%s msgs=%d user_len=%d", endpoint, model, len(msgs), len(user))
 	resp, err := p.Client.Do(req)
 	if err != nil {
-		log.Printf("[ai] http error model=%s endpoint=%s err=%v", p.Model, endpoint, err)
+		log.Printf("[ai] http error model=%s endpoint=%s err=%v", model, endpoint, err)
 		return "", err
 	}
 	defer resp.Body.Close()
@@ -99,7 +143,7 @@ func (p *Provider) Complete(ctx context.Context, system, user string) (string, e
 		if len(snip) > 500 {
 			snip = snip[:500]
 		}
-		log.Printf("[ai] non-200 status=%d model=%s body_snip=%q", resp.StatusCode, p.Model, snip)
+		log.Printf("[ai] non-200 status=%d model=%s body_snip=%q", resp.StatusCode, model, snip)
 		return "", fmt.Errorf("ai status %d: %s", resp.StatusCode, string(raw))
 	}
 	var cr chatResponse
@@ -108,11 +152,11 @@ func (p *Provider) Complete(ctx context.Context, system, user string) (string, e
 		if len(snip) > 500 {
 			snip = snip[:500]
 		}
-		log.Printf("[ai] parse error model=%s err=%v body_snip=%q", p.Model, err, snip)
+		log.Printf("[ai] parse error model=%s err=%v body_snip=%q", model, err, snip)
 		return "", fmt.Errorf("ai decode: %w body=%s", err, string(raw))
 	}
 	if cr.Error != nil {
-		log.Printf("[ai] provider error model=%s msg=%s", p.Model, cr.Error.Message)
+		log.Printf("[ai] provider error model=%s msg=%s", model, cr.Error.Message)
 		return "", fmt.Errorf("ai error: %s", cr.Error.Message)
 	}
 	if len(cr.Choices) == 0 {
@@ -120,7 +164,7 @@ func (p *Provider) Complete(ctx context.Context, system, user string) (string, e
 		if len(snip) > 500 {
 			snip = snip[:500]
 		}
-		log.Printf("[ai] no choices model=%s body_snip=%q", p.Model, snip)
+		log.Printf("[ai] no choices model=%s body_snip=%q", model, snip)
 		return "", fmt.Errorf("ai: no choices")
 	}
 	out := strings.TrimSpace(cr.Choices[0].Message.Content)
@@ -128,7 +172,7 @@ func (p *Provider) Complete(ctx context.Context, system, user string) (string, e
 	if len(snipOut) > 200 {
 		snipOut = snipOut[:200]
 	}
-	log.Printf("[ai] ok model=%s resp_len=%d snip=%q", p.Model, len(out), snipOut)
+	log.Printf("[ai] ok model=%s resp_len=%d snip=%q", model, len(out), snipOut)
 	return out, nil
 }
 
