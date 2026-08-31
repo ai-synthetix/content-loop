@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,6 +39,28 @@ type VerificationReport struct {
 }
 
 var forbiddenPhrases = []string{"as an ai", "i am an ai", "guaranteed", "100% guarantee"}
+
+// fallback metrics
+var (
+	fallbackBriefCount     int64
+	fallbackCanonicalCount int64
+	aiSuccessCanonicalCount int64
+)
+
+func FallbackMetrics() map[string]int64 {
+	return map[string]int64{
+		"fallback_brief":     atomic.LoadInt64(&fallbackBriefCount),
+		"fallback_canonical": atomic.LoadInt64(&fallbackCanonicalCount),
+		"ai_success_canonical": atomic.LoadInt64(&aiSuccessCanonicalCount),
+	}
+}
+
+func substr(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
+}
 
 func NewGenerationService(st *store.Store, p *ai.Provider) *GenerationService {
 	if p == nil {
@@ -193,8 +217,6 @@ func (g *GenerationService) PrepareReview(contentItemID, ownerUserID string) (*R
 			filtered = append(filtered, v)
 		}
 	}
-	// sort by version_no desc (list is by created_at desc, close enough; fix order)
-	// find max version_no
 	var latest, prev map[string]any
 	maxNo := -1
 	for _, v := range filtered {
@@ -207,7 +229,6 @@ func (g *GenerationService) PrepareReview(contentItemID, ownerUserID string) (*R
 			prev = v
 		}
 	}
-	// variants for latest
 	var variants []map[string]any
 	if latest != nil {
 		allVars, _ := g.Store.List("channel_variant", ownerUserID)
@@ -239,7 +260,6 @@ func (g *GenerationService) planTopic(ownerUserID, title, currentID string) *str
 	if g.Store == nil || g.Store.DB == nil {
 		return nil
 	}
-	// dedupe via title LIKE %title words%
 	like := "%" + escapeLike(title) + "%"
 	rows, err := g.Store.DB.Queryx(`SELECT id, title FROM content_item WHERE owner_user_id=? AND id != ? AND title LIKE ? LIMIT 5`, ownerUserID, currentID, like)
 	if err != nil {
@@ -260,12 +280,21 @@ func (g *GenerationService) planTopic(ownerUserID, title, currentID string) *str
 }
 
 func (g *GenerationService) buildBrief(ctx context.Context, title, projectJSON, existingBrief string) map[string]any {
-	// try AI, fallback scaffold
 	userMsg := ai.UserBuildBrief(title, projectJSON, existingBrief)
-	if resp, err := g.AI.Complete(ctx, ai.SystemBase, userMsg); err == nil {
+	resp, err := g.AI.Complete(ctx, ai.SystemBase, userMsg)
+	if err != nil {
+		log.Printf("[generation] buildBrief Complete error title=%q err=%v", title, err)
+		atomic.AddInt64(&fallbackBriefCount, 1)
+	} else {
 		if m := tryParseJSON(resp); m != nil {
+			log.Printf("[generation] buildBrief AI success title=%q resp_snip=%q", title, substr(resp, 200))
 			return m
 		}
+		log.Printf("[generation] buildBrief parse warning title=%q resp_snip=%q", title, substr(resp, 500))
+		if len(strings.TrimSpace(resp)) > 100 {
+			// treat raw as needed? brief needs JSON, fallback
+		}
+		atomic.AddInt64(&fallbackBriefCount, 1)
 	}
 	// scaffold fallback
 	return map[string]any{
@@ -290,17 +319,28 @@ type canonicalDraft struct {
 func (g *GenerationService) draftCanonical(ctx context.Context, title string, brief map[string]any) canonicalDraft {
 	briefJSON, _ := json.Marshal(brief)
 	userMsg := ai.UserDraftCanonical(title, string(briefJSON))
-	if resp, err := g.AI.Complete(ctx, ai.SystemBase, userMsg); err == nil {
+	resp, err := g.AI.Complete(ctx, ai.SystemBase, userMsg)
+	if err != nil {
+		log.Printf("[generation] draftCanonical Complete error title=%q err=%v", title, err)
+		atomic.AddInt64(&fallbackCanonicalCount, 1)
+	} else {
 		if m := tryParseJSON(resp); m != nil {
-			// map to canonicalDraft robustly
+			atomic.AddInt64(&aiSuccessCanonicalCount, 1)
+			log.Printf("[generation] draftCanonical AI JSON success title=%q body_len=%d snip=%q", title, len(resp), substr(resp, 200))
 			return mapToCanonical(m, title)
 		}
-		// if response was raw markdown, wrap
-		if len(resp) > 100 {
-			return canonicalDraft{Title: title, Excerpt: truncate(resp, 160), BodyMarkdown: resp, Claims: extractClaims(brief), Sources: extractSources(brief)}
+		// raw markdown fallback: treat >100 chars as valid body instead of scaffold fallback
+		trimmed := strings.TrimSpace(resp)
+		if len(trimmed) > 100 {
+			log.Printf("[generation] draftCanonical raw markdown fallback title=%q resp_len=%d snip=%q", title, len(trimmed), substr(trimmed, 500))
+			atomic.AddInt64(&aiSuccessCanonicalCount, 1)
+			return canonicalDraft{Title: title, Excerpt: truncate(trimmed, 160), BodyMarkdown: trimmed, Claims: extractClaims(brief), Sources: extractSources(brief)}
 		}
+		log.Printf("[generation] draftCanonical parse warning title=%q resp_snip=%q len=%d", title, substr(resp, 500), len(resp))
+		atomic.AddInt64(&fallbackCanonicalCount, 1)
 	}
-	// mock fallback
+	// scaffold fallback
+	log.Printf("[generation] draftCanonical using scaffold fallback title=%q", title)
 	return canonicalDraft{
 		Title:        title,
 		Excerpt:      "Generated excerpt for " + truncate(title, 80),
@@ -324,6 +364,9 @@ func (g *GenerationService) renderVariants(ctx context.Context, contentItemID, v
 		if resp, err := g.AI.Complete(ctx, ai.SystemBase, userMsg); err == nil && resp != "" {
 			rendered = resp
 		} else {
+			if err != nil {
+				log.Printf("[generation] renderVariants %s error: %v snip=%q", ch, err, substr(c.BodyMarkdown, 100))
+			}
 			if ch == "telegram" {
 				rendered = truncate(c.BodyMarkdown, 3500)
 			} else {
@@ -412,15 +455,12 @@ func verify(c canonicalDraft) VerificationReport {
 	if c.BodyMarkdown == "" {
 		errs = append(errs, "body_markdown empty")
 	}
-	// schema: must be valid markdown-ish (has heading or list)
 	if !strings.Contains(c.BodyMarkdown, "#") && !strings.Contains(c.BodyMarkdown, "- ") && !strings.Contains(c.BodyMarkdown, "*") {
 		warns = append(warns, "body lacks markdown structure (no headings/lists)")
 	}
-	// claims check
 	if len(c.Claims) == 0 {
 		warns = append(warns, "no claims")
 	}
-	// forbidden phrases
 	lower := strings.ToLower(c.BodyMarkdown + " " + c.Title)
 	for _, f := range forbiddenPhrases {
 		if strings.Contains(lower, f) {
@@ -434,12 +474,47 @@ func verify(c canonicalDraft) VerificationReport {
 
 func tryParseJSON(s string) map[string]any {
 	s = strings.TrimSpace(s)
-	// strip markdown fences
+	// handle JSON fences: ```json ... ``` or ``` ... ```
+	if strings.HasPrefix(s, "```") {
+		// strip first fence line
+		lines := strings.SplitN(s, "\n", 2)
+		if len(lines) == 2 {
+			// remove ```json or ``` prefix
+			s = lines[1]
+		} else {
+			s = strings.TrimPrefix(s, "```json")
+			s = strings.TrimPrefix(s, "```")
+		}
+		// strip trailing fence
+		if idx := strings.LastIndex(s, "```"); idx != -1 {
+			s = s[:idx]
+		}
+		s = strings.TrimSpace(s)
+	}
+	// also handle case where fence encloses JSON but not at start (e.g. "Here is JSON:\n```json\n{...}\n```")
+	if strings.Contains(s, "```") {
+		// extract between fences
+		startFence := strings.Index(s, "```")
+		if startFence != -1 {
+			rest := s[startFence:]
+			// find newline after fence
+			nl := strings.Index(rest, "\n")
+			if nl != -1 {
+				rest = rest[nl+1:]
+			} else {
+				rest = strings.TrimPrefix(rest, "```json")
+				rest = strings.TrimPrefix(rest, "```")
+			}
+			if endFence := strings.LastIndex(rest, "```"); endFence != -1 {
+				s = strings.TrimSpace(rest[:endFence])
+			}
+		}
+	}
+	// legacy simple prefix/suffix handling
 	s = strings.TrimPrefix(s, "```json")
 	s = strings.TrimPrefix(s, "```")
 	s = strings.TrimSuffix(s, "```")
 	s = strings.TrimSpace(s)
-	// find first { and last }
 	start := strings.Index(s, "{")
 	end := strings.LastIndex(s, "}")
 	if start >= 0 && end > start {
@@ -447,6 +522,7 @@ func tryParseJSON(s string) map[string]any {
 	}
 	var m map[string]any
 	if err := json.Unmarshal([]byte(s), &m); err != nil {
+		log.Printf("[generation] tryParseJSON fail err=%v s_snip=%q", err, substr(s, 300))
 		return nil
 	}
 	return m
@@ -532,7 +608,6 @@ func truncate(s string, n int) string {
 func escapeLike(s string) string {
 	r := strings.ReplaceAll(s, "%", "\\%")
 	r = strings.ReplaceAll(r, "_", "\\_")
-	// only take first 30 chars for LIKE dedupe
 	if len([]rune(r)) > 40 {
 		r = string([]rune(r)[:40])
 	}

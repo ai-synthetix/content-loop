@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -129,6 +131,8 @@ func NewRouterWithConfig(cfg Config) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(middleware.Timeout(180 * time.Second))
+	r.Use(rateLimitMiddleware)
 
 	// CORS for local web (3000 -> 8081)
 	r.Use(func(next http.Handler) http.Handler {
@@ -199,14 +203,75 @@ func NewRouterWithConfig(cfg Config) http.Handler {
 	return r
 }
 
+
+// rateLimitMiddleware is a stub in-memory per-IP fixed-window rate limiter.
+// Allows 120 req/min per IP; returns 429 when exceeded. Production should use Redis.
+var (
+	rlMu    sync.Mutex
+	rlHits  = map[string][]time.Time{}
+)
+
+func rateLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// skip healthz
+		if r.URL.Path == "/healthz" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		ip := r.Header.Get("X-Forwarded-For")
+		if ip == "" {
+			ip = r.RemoteAddr
+		}
+		// simple window: 120 req per minute
+		now := time.Now()
+		window := time.Minute
+		limit := 120
+		rlMu.Lock()
+		hits := rlHits[ip]
+		// prune
+		fresh := hits[:0]
+		for _, t := range hits {
+			if now.Sub(t) < window {
+				fresh = append(fresh, t)
+			}
+		}
+		hits = fresh
+		if len(hits) >= limit {
+			rlMu.Unlock()
+			log.Printf("[ratelimit] 429 ip=%s path=%s", ip, r.URL.Path)
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded, try later"})
+			return
+		}
+		hits = append(hits, now)
+		rlHits[ip] = hits
+		rlMu.Unlock()
+		next.ServeHTTP(w, r)
+	})
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	status := "ok"
+	code := http.StatusOK
+	dbStatus := "ok"
+	if s.Store != nil && s.Store.DB != nil {
+		if err := s.Store.DB.PingContext(ctx); err != nil {
+			dbStatus = "error: " + err.Error()
+			status = "degraded"
+			code = http.StatusServiceUnavailable
+			log.Printf("[healthz] db ping failed: %v", err)
+		}
+	} else {
+		dbStatus = "no db (in-memory)"
+	}
+	writeJSON(w, code, map[string]string{"status": status, "db": dbStatus})
 }
 
 // POST /auth/google {id_token}

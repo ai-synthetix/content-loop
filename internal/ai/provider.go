@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -29,14 +30,14 @@ func NewFromEnv() *Provider {
 		BaseURL: base,
 		APIKey:  os.Getenv("OPENCODE_API_KEY"),
 		Model:   modelFromEnv(),
-		Client:  &http.Client{Timeout: 45 * time.Second},
+		Client:  &http.Client{Timeout: 120 * time.Second},
 	}
 }
 
 func modelFromEnv() string {
 	m := os.Getenv("AI_MODEL")
 	if m == "" {
-		m = "kimi-k2.5"
+		m = "kimi-k2.6"
 	}
 	return m
 }
@@ -67,6 +68,7 @@ type chatResponse struct {
 
 func (p *Provider) Complete(ctx context.Context, system, user string) (string, error) {
 	if p.IsMock() {
+		log.Printf("[ai] Complete mock mode model=%s user_len=%d", p.Model, len(user))
 		return p.mockComplete(system, user), nil
 	}
 	msgs := []message{}
@@ -76,36 +78,61 @@ func (p *Provider) Complete(ctx context.Context, system, user string) (string, e
 	msgs = append(msgs, message{Role: "user", Content: user})
 	reqBody := chatRequest{Model: p.Model, Messages: msgs, Temp: 0.7}
 	b, _ := json.Marshal(reqBody)
-	req, err := http.NewRequestWithContext(ctx, "POST", p.BaseURL+"/chat/completions", bytes.NewReader(b))
+	endpoint := strings.TrimRight(p.BaseURL, "/") + "/chat/completions"
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(b))
 	if err != nil {
+		log.Printf("[ai] http new request error: %v endpoint=%s model=%s", err, endpoint, p.Model)
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.APIKey)
+	log.Printf("[ai] POST %s model=%s msgs=%d", endpoint, p.Model, len(msgs))
 	resp, err := p.Client.Do(req)
 	if err != nil {
+		log.Printf("[ai] http error model=%s endpoint=%s err=%v", p.Model, endpoint, err)
 		return "", err
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		snip := string(raw)
+		if len(snip) > 500 {
+			snip = snip[:500]
+		}
+		log.Printf("[ai] non-200 status=%d model=%s body_snip=%q", resp.StatusCode, p.Model, snip)
 		return "", fmt.Errorf("ai status %d: %s", resp.StatusCode, string(raw))
 	}
 	var cr chatResponse
 	if err := json.Unmarshal(raw, &cr); err != nil {
+		snip := string(raw)
+		if len(snip) > 500 {
+			snip = snip[:500]
+		}
+		log.Printf("[ai] parse error model=%s err=%v body_snip=%q", p.Model, err, snip)
 		return "", fmt.Errorf("ai decode: %w body=%s", err, string(raw))
 	}
 	if cr.Error != nil {
+		log.Printf("[ai] provider error model=%s msg=%s", p.Model, cr.Error.Message)
 		return "", fmt.Errorf("ai error: %s", cr.Error.Message)
 	}
 	if len(cr.Choices) == 0 {
+		snip := string(raw)
+		if len(snip) > 500 {
+			snip = snip[:500]
+		}
+		log.Printf("[ai] no choices model=%s body_snip=%q", p.Model, snip)
 		return "", fmt.Errorf("ai: no choices")
 	}
-	return strings.TrimSpace(cr.Choices[0].Message.Content), nil
+	out := strings.TrimSpace(cr.Choices[0].Message.Content)
+	snipOut := out
+	if len(snipOut) > 200 {
+		snipOut = snipOut[:200]
+	}
+	log.Printf("[ai] ok model=%s resp_len=%d snip=%q", p.Model, len(out), snipOut)
+	return out, nil
 }
 
 func (p *Provider) mockComplete(system, user string) string {
-	// deterministic mock that respects expected JSON shapes when requested
 	lower := strings.ToLower(user)
 	if strings.Contains(lower, "draft_canonical") || strings.Contains(lower, "\"title\"") && strings.Contains(lower, "body_markdown") {
 		return `{"title":"Mock Generated Title","excerpt":"Mock excerpt for review.","body_markdown":"# Mock Generated Title\n\nThis is a mock canonical body generated without API key. It contains enough length to pass verification.\n\n## Section\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. **Claims** are cited as [1].\n\n- Point one\n- Point two\n","claims":["Mock claim 1 [source 1]"],"sources":["https://example.com/source1"]}`
@@ -119,7 +146,6 @@ func (p *Provider) mockComplete(system, user string) string {
 	if strings.Contains(lower, "familyos") {
 		return "# Mock FamilyOS Variant\n\nFull body adapted for FamilyOS with structured payload."
 	}
-	// generic
 	snippet := user
 	if len(snippet) > 120 {
 		snippet = snippet[:120]

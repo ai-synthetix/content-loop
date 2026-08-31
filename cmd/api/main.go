@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -29,7 +33,6 @@ func main() {
 	}
 	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
 
-	// Try DB + migrate; if fails keep running with in-memory fallback (so /healthz still works)
 	var st *store.Store
 	db, err := sqlx.Open("mysql", databaseURL)
 	if err != nil {
@@ -54,8 +57,34 @@ func main() {
 		GoogleClientID: googleClientID,
 		AI:             ai.NewFromEnv(),
 	})
-	log.Printf("content-loop api listening on :%s (db=%v google_client_id_set=%v)", port, st != nil, googleClientID != "")
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
-		log.Fatal(err)
+
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      handler,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 180 * time.Second,
+		IdleTimeout:  180 * time.Second,
 	}
+
+	// graceful shutdown
+	go func() {
+		log.Printf("content-loop api listening on :%s (db=%v google_client_id_set=%v model=%s)", port, st != nil, googleClientID != "", os.Getenv("AI_MODEL"))
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("listen: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Printf("shutting down server...")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("server forced to shutdown: %v", err)
+	}
+	if db != nil {
+		_ = db.Close()
+	}
+	log.Printf("server exited")
 }

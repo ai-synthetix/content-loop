@@ -9,7 +9,7 @@ const PromptPlanTopic = `plan_topic: Given a content_item title and project poli
 
 const PromptBuildBrief = `build_brief: Given title, project channels/languages/policy, create a scaffold brief JSON. Output JSON only, no markdown fence: {"goal":"...","audience":"...","claims":[{"text":"claim","source":"url or null"}],"sources":["url"],"outline":["H2","H2"]}. If no real sources, use https://example.com placeholders but mark as placeholder.`
 
-const PromptDraftCanonical = `draft_canonical: You are drafting the canonical markdown body for a content item. Given brief JSON and title, produce JSON only (no markdown fence) with keys: title, excerpt (1-2 sentences), body_markdown (markdown, 800-3000 chars, h2/h3, lists, bold, links), claims (array of strings), sources (array of urls). Claims must appear in body as [n] citations. Body must be valid markdown. Output JSON only.`
+const PromptDraftCanonical = `draft_canonical: You are drafting the canonical markdown body for a content item. Given brief JSON and title, produce JSON ONLY. Respond ONLY with JSON object, no surrounding text, no markdown fences: {"title":"...","excerpt":"1-2 sentences","body_markdown":"markdown 800-3000 chars with h2/h3, lists, bold, links","claims":["claim strings"],"sources":["urls"]}. Claims must appear in body as [n] citations. Body must be valid markdown. Respond ONLY with JSON.`
 
 const PromptRenderTelegram = `render_variant telegram: Adapt canonical body_markdown to Telegram channel. Telegram limit 4096 chars, no markdown tables, use *bold* and _italic_ where needed, keep links as https URLs, short paragraphs, CTA at end. Output plain text ready to send. Keep under 3500 chars.`
 
@@ -23,7 +23,7 @@ func UserBuildBrief(title, projectJSON, briefHint string) string {
 	return "build_brief input:\ntitle: " + title + "\nproject: " + projectJSON + "\nbrief_hint: " + briefHint + "\n" + PromptBuildBrief
 }
 func UserDraftCanonical(title, briefJSON string) string {
-	return "draft_canonical input:\ntitle: " + title + "\nbrief: " + briefJSON + "\n" + PromptDraftCanonical
+	return "draft_canonical input:\ntitle: " + title + "\nbrief: " + briefJSON + "\n" + PromptDraftCanonical + "\nIMPORTANT: Respond ONLY with JSON {\"title\",\"excerpt\",\"body_markdown\",\"claims\",\"sources\"} — no fence, no extra text."
 }
 func UserRenderTelegram(canonicalBody string) string {
 	return "render_variant telegram input:\ncanonical_body:\n" + canonicalBody + "\n" + PromptRenderTelegram
