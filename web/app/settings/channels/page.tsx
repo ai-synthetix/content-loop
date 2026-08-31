@@ -16,6 +16,7 @@ type Channel = {
 export default function ChannelsPage() {
   const router = useRouter();
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [projects, setProjects] = useState<{ id: string; name: string; slug: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -32,11 +33,16 @@ export default function ChannelsPage() {
     try {
       const token = getToken();
       if (!token) { router.replace("/login"); return; }
-      const r = await fetch(apiUrl("/api/v1/channels/"), { headers: { ...authHeaders() } });
-      if (r.status === 401) { router.replace("/login"); throw new Error("unauthorized"); }
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || String(r.status));
+      const [cr, pr] = await Promise.all([
+        fetch(apiUrl("/api/v1/channels/"), { headers: { ...authHeaders() } }),
+        fetch(apiUrl("/api/v1/projects/"), { headers: { ...authHeaders() } }),
+      ]);
+      if (cr.status === 401 || pr.status === 401) { router.replace("/login"); throw new Error("unauthorized"); }
+      const d = await cr.json();
+      if (!cr.ok) throw new Error(d.error || String(cr.status));
       setChannels(d.items || []);
+      const pd = await pr.json().catch(() => ({ items: [] }));
+      setProjects((pd.items || []).map((p: any) => ({ id: p.id, name: p.name, slug: p.slug })));
     } catch (e: any) { setErr(e.message); }
     finally { setLoading(false); }
   }
@@ -107,8 +113,11 @@ export default function ChannelsPage() {
             <label style={labelStyle}>Name
               <input value={formName} onChange={e => setFormName(e.target.value)} placeholder={`${formType} channel`} style={inputStyle} />
             </label>
-            <label style={labelStyle}>Project ID (optional)
-              <input value={formProjectId} onChange={e => setFormProjectId(e.target.value)} placeholder="bind to project" style={{ ...inputStyle, minWidth: 260 }} />
+            <label style={labelStyle}>Project (optional)
+              <select value={formProjectId} onChange={e => setFormProjectId(e.target.value)} style={inputStyle}>
+                <option value="">— no project —</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name} ({p.slug})</option>)}
+              </select>
             </label>
           </div>
           <label style={labelStyle}>Config JSON (encrypted at rest)
@@ -129,7 +138,7 @@ export default function ChannelsPage() {
                   <span style={{ background: c.status === "active" ? "#14301e" : "#331a1a", color: c.status === "active" ? "#6fdc8c" : "#ff8a8a", padding: "2px 8px", borderRadius: 20, fontSize: 11 }}>{c.status}</span>
                   <span style={{ opacity: 0.5, fontSize: 11 }}>{c.id.slice(0, 8)}…</span>
                 </div>
-                {c.project_id && <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>project: {c.project_id}</div>}
+                {c.project_id && <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>project: {projects.find(p=>p.id===c.project_id)?.name || c.project_id} <span style={{ opacity: 0.5 }}>({c.project_id.slice(0,8)}…)</span></div>}
                 <pre style={{ margin: "8px 0 0", background: "#0b111a", border: "1px solid #1e2f44", borderRadius: 8, padding: 8, fontSize: 11, overflow: "auto" }}>{JSON.stringify(c.config || {}, null, 2)}</pre>
               </div>
               <div style={{ display: "flex", gap: 8, flexDirection: "column", alignItems: "flex-end" }}>

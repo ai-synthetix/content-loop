@@ -62,7 +62,19 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request) {
 	var projectID *string
 	if v, ok := body["project_id"]; ok && v != nil && fmt.Sprintf("%v", v) != "" && fmt.Sprintf("%v", v) != "<nil>" {
 		sv := fmt.Sprintf("%v", v)
-		projectID = &sv
+		sv = strings.TrimSpace(sv)
+		if sv != "" {
+			// validate project belongs to owner
+			if _, err := s.Store.Get("project", sv, owner); err != nil {
+				if err == sql.ErrNoRows {
+					writeJSON(w, http.StatusBadRequest, map[string]string{"error": "project_id not found or not owned by you"})
+					return
+				}
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			projectID = &sv
+		}
 	}
 	cfgRaw, _ := body["config"]
 	cfgMap := toConfigMap(cfgRaw)
@@ -120,6 +132,27 @@ func (s *Server) updateChannel(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		return
+	}
+	// validate project_id if present
+	if pidRaw, ok := patch["project_id"]; ok {
+		if pidRaw != nil && fmt.Sprintf("%v", pidRaw) != "" && fmt.Sprintf("%v", pidRaw) != "<nil>" {
+			sv := strings.TrimSpace(fmt.Sprintf("%v", pidRaw))
+			if sv != "" {
+				if _, err := s.Store.Get("project", sv, owner); err != nil {
+					if err == sql.ErrNoRows {
+						writeJSON(w, http.StatusBadRequest, map[string]string{"error": "project_id not found or not owned by you"})
+						return
+					}
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+					return
+				}
+				patch["project_id"] = sv
+			} else {
+				patch["project_id"] = nil
+			}
+		} else {
+			patch["project_id"] = nil
+		}
 	}
 	if cfgRaw, ok := patch["config"]; ok {
 		cfgMap := toConfigMap(cfgRaw)

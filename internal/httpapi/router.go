@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,6 +18,64 @@ import (
 	"github.com/ai-synthetix/content-loop/internal/domain"
 	"github.com/ai-synthetix/content-loop/internal/store"
 )
+
+var slugRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+
+func validateSlug(slug string) error {
+	if len(slug) < 2 || len(slug) > 80 {
+		return jsonError("slug must be 2-80 chars")
+	}
+	if !slugRe.MatchString(slug) {
+		return jsonError("slug must be lowercase alphanumeric with hyphens (e.g. my-project)")
+	}
+	return nil
+}
+
+type jsonError string
+
+func (e jsonError) Error() string { return string(e) }
+
+func normalizeLanguages(v any) string {
+	if v == nil {
+		return `["ru"]`
+	}
+	switch val := v.(type) {
+	case string:
+		var arr []any
+		if err := json.Unmarshal([]byte(val), &arr); err == nil {
+			return val
+		}
+		// comma separated string?
+		parts := strings.Split(val, ",")
+		clean := []string{}
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				clean = append(clean, p)
+			}
+		}
+		if len(clean) == 0 {
+			return `["ru"]`
+		}
+		b, _ := json.Marshal(clean)
+		return string(b)
+	case []any:
+		if len(val) == 0 {
+			return `["ru"]`
+		}
+		b, _ := json.Marshal(val)
+		return string(b)
+	case []string:
+		if len(val) == 0 {
+			return `["ru"]`
+		}
+		b, _ := json.Marshal(val)
+		return string(b)
+	default:
+		b, _ := json.Marshal(val)
+		return string(b)
+	}
+}
 
 // Server holds state. If Store is nil, falls back to in-memory maps (useful for tests/dev without DB).
 type Server struct {
@@ -284,6 +344,51 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 	if body == nil {
 		body = map[string]any{}
 	}
+	// validation
+	name, _ := body["name"].(string)
+	name = strings.TrimSpace(name)
+	if name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+		return
+	}
+	slug, _ := body["slug"].(string)
+	slug = strings.TrimSpace(strings.ToLower(slug))
+	if slug == "" {
+		// auto-generate from name
+		slug = strings.ToLower(strings.TrimSpace(name))
+		slug = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(slug, "-")
+		slug = strings.Trim(slug, "-")
+		if slug == "" {
+			slug = "project"
+		}
+		body["slug"] = slug
+	}
+	if err := validateSlug(slug); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	body["name"] = name
+	body["slug"] = slug
+	// defaults
+	if _, ok := body["languages"]; !ok || body["languages"] == nil {
+		body["languages"] = []string{"ru"}
+	}
+	if _, ok := body["channels"]; !ok {
+		body["channels"] = []any{}
+	}
+	if _, ok := body["policy"]; !ok {
+		body["policy"] = map[string]any{}
+	}
+	// normalize languages to JSON string for DB if needed
+	if s.useDB() {
+		if langs, ok := body["languages"]; ok && langs != nil {
+			if _, isString := langs.(string); !isString {
+				// keep as value, Insert will marshal via toDBValue, but normalize to valid JSON array string
+				// do nothing, toDBValue will marshal
+			}
+		}
+	}
+
 	id := uuid.NewString()
 	body["id"] = id
 	if s.useDB() {
@@ -291,6 +396,10 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		body["owner_user_id"] = owner
 		marshalJSONFields(body, "channels", "languages", "policy")
 		if err := s.Store.Insert("project", body); err != nil {
+			if strings.Contains(err.Error(), "Duplicate") || strings.Contains(err.Error(), "uq_project_slug") {
+				writeJSON(w, http.StatusConflict, map[string]string{"error": "slug already exists"})
+				return
+			}
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
@@ -333,6 +442,26 @@ func (s *Server) updateProject(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var patch map[string]any
 	_ = json.NewDecoder(r.Body).Decode(&patch)
+	if patch == nil {
+		patch = map[string]any{}
+	}
+	if nameRaw, ok := patch["name"]; ok {
+		if name, _ := nameRaw.(string); strings.TrimSpace(name) == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name cannot be empty"})
+			return
+		} else {
+			patch["name"] = strings.TrimSpace(name)
+		}
+	}
+	if slugRaw, ok := patch["slug"]; ok {
+		slug, _ := slugRaw.(string)
+		slug = strings.TrimSpace(strings.ToLower(slug))
+		if err := validateSlug(slug); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		patch["slug"] = slug
+	}
 	if s.useDB() {
 		owner := ownerID(r)
 		marshalJSONFields(patch, "channels", "languages", "policy")
@@ -410,6 +539,58 @@ func (s *Server) createContentItem(w http.ResponseWriter, r *http.Request) {
 	if body == nil {
 		body = map[string]any{}
 	}
+	// validation: title and project_id required
+	title, _ := body["title"].(string)
+	if strings.TrimSpace(title) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "title is required"})
+		return
+	}
+	projIDRaw, _ := body["project_id"].(string)
+	if projIDRaw == "" {
+		// also accept projectId camelCase?
+		if v, ok := body["projectId"]; ok {
+			projIDRaw = strings.TrimSpace(v.(string))
+		}
+	}
+	projIDRaw = strings.TrimSpace(projIDRaw)
+	if projIDRaw == "" {
+		if v, ok := body["project_id"]; ok && v != nil {
+			projIDRaw = strings.TrimSpace(httpParamString(v))
+		}
+	}
+	if projIDRaw == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "project_id is required"})
+		return
+	}
+	// validate project exists and belongs to owner (if DB)
+	if s.useDB() {
+		owner := ownerID(r)
+		if _, err := s.Store.Get("project", projIDRaw, owner); err != nil {
+			if err == sql.ErrNoRows {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "project not found or not owned by you"})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		body["project_id"] = projIDRaw
+	} else {
+		body["project_id"] = projIDRaw
+	}
+	if _, ok := body["slug"]; !ok || strings.TrimSpace(httpParamString(body["slug"])) == "" {
+		// auto slug from title
+		sSlug := strings.ToLower(strings.TrimSpace(title))
+		sSlug = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(sSlug, "-")
+		sSlug = strings.Trim(sSlug, "-")
+		if sSlug == "" {
+			sSlug = "untitled"
+		}
+		if len(sSlug) > 80 {
+			sSlug = sSlug[:80]
+		}
+		body["slug"] = sSlug
+	}
+	body["title"] = strings.TrimSpace(title)
 	id := uuid.NewString()
 	body["id"] = id
 	if _, ok := body["status"]; !ok {
@@ -430,6 +611,17 @@ func (s *Server) createContentItem(w http.ResponseWriter, r *http.Request) {
 	s.contentItems[id] = body
 	s.mu.Unlock()
 	writeJSON(w, http.StatusCreated, body)
+}
+
+func httpParamString(v any) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
 }
 
 func (s *Server) getContentItem(w http.ResponseWriter, r *http.Request) {

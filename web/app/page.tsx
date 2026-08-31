@@ -32,11 +32,6 @@ export default function Page() {
   const [projectId, setProjectId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formErr, setFormErr] = useState<string | null>(null);
-  const [creatingProject, setCreatingProject] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectSlug, setNewProjectSlug] = useState("");
-  const [newProjectErr, setNewProjectErr] = useState<string | null>(null);
-  const [newProjectSaving, setNewProjectSaving] = useState(false);
 
   const fetchProjects = useCallback(async () => {
     const r = await fetch(apiUrl("/api/v1/projects/"), { headers: { ...authHeaders() } });
@@ -71,35 +66,11 @@ export default function Page() {
     if (!slugDirty) setSlug(slugify(v));
   }
 
-  async function handleCreateProjectInline() {
-    setNewProjectErr(null);
-    const name = newProjectName.trim();
-    if (!name) { setNewProjectErr("Название проекта обязательно"); return; }
-    const s = (newProjectSlug.trim() ? slugify(newProjectSlug) : slugify(name));
-    setNewProjectSaving(true);
-    try {
-      const r = await fetch(apiUrl("/api/v1/projects/"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ name, slug: s, channels: [], languages: ["ru"], policy: {} }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || `create project failed ${r.status}`);
-      const created: Project = d;
-      setProjects(prev => [...prev, created]);
-      setProjectId(created.id);
-      setCreatingProject(false);
-      setNewProjectName(""); setNewProjectSlug("");
-    } catch (e: any) {
-      setNewProjectErr(e.message);
-    } finally { setNewProjectSaving(false); }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormErr(null);
     if (!title.trim()) { setFormErr("Title is required"); return; }
-    if (!projectId) { setFormErr("Select a project (or create one)"); return; }
+    if (!projectId) { setFormErr("Project is required — select one or create at /projects"); return; }
     const finalSlug = slug.trim() ? slugify(slug) : slugify(title);
     setSubmitting(true);
     try {
@@ -237,47 +208,18 @@ export default function Page() {
                 {projects.length === 0 ? (
                   <div style={{ background: "#0B1420", border: "1px solid #3a2d00", borderRadius: 10, padding: 12 }}>
                     <div style={{ fontSize: 12, color: "#ffb84d", marginBottom: 8 }}>No projects yet — create one first.</div>
-                    {!creatingProject ? (
-                      <button type="button" onClick={() => setCreatingProject(true)} style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#8fb8ff", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontSize: 13 }}>+ Create project</button>
-                    ) : (
-                      <div style={{ display: "grid", gap: 8 }}>
-                        <input value={newProjectName} onChange={e => setNewProjectName(e.target.value)} placeholder="Project name"
-                          style={{ background: "#111824", border: "1px solid #1E2F44", borderRadius: 8, padding: "8px 10px", color: "#eee" }} />
-                        <input value={newProjectSlug} onChange={e => setNewProjectSlug(e.target.value)} placeholder="slug (auto)"
-                          style={{ background: "#111824", border: "1px solid #1E2F44", borderRadius: 8, padding: "8px 10px", color: "#eee" }} />
-                        {newProjectErr && <span style={{ color: "#ff8a8a", fontSize: 12 }}>{newProjectErr}</span>}
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button type="button" disabled={newProjectSaving} onClick={handleCreateProjectInline} style={{ background: "#3D8DFF", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", cursor: "pointer", opacity: newProjectSaving ? 0.6 : 1 }}>{newProjectSaving ? "Creating…" : "Create"}</button>
-                          <button type="button" onClick={() => setCreatingProject(false)} style={{ background: "transparent", border: "1px solid #2a3a52", color: "#8FA0B8", borderRadius: 8, padding: "8px 14px", cursor: "pointer" }}>Cancel</button>
-                        </div>
-                      </div>
-                    )}
+                    <Link href="/projects" style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#8fb8ff", borderRadius: 8, padding: "8px 12px", textDecoration: "none", fontSize: 13, display: "inline-block" }}>Go to Projects →</Link>
                   </div>
                 ) : (
-                  <>
-                    <select value={projectId} onChange={e => setProjectId(e.target.value)}
-                      style={{ background: "#0B1420", border: "1px solid #1E2F44", borderRadius: 10, padding: "10px 12px", color: "#eee", outline: "none" }}>
-                      {projects.map(p => (
-                        <option key={p.id} value={p.id}>{p.name || p.slug || p.id.slice(0, 8)}</option>
-                      ))}
-                    </select>
-                    {!creatingProject ? (
-                      <button type="button" onClick={() => setCreatingProject(true)} style={{ fontSize: 12, color: "#8fb8ff", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0 }}>+ Create new project</button>
-                    ) : (
-                      <div style={{ background: "#0B1420", border: "1px solid #1E2F44", borderRadius: 10, padding: 12, display: "grid", gap: 8 }}>
-                        <input value={newProjectName} onChange={e => setNewProjectName(e.target.value)} placeholder="Project name"
-                          style={{ background: "#111824", border: "1px solid #1E2F44", borderRadius: 8, padding: "8px 10px", color: "#eee" }} />
-                        <input value={newProjectSlug} onChange={e => setNewProjectSlug(e.target.value)} placeholder="slug (auto)"
-                          style={{ background: "#111824", border: "1px solid #1E2F44", borderRadius: 8, padding: "8px 10px", color: "#eee" }} />
-                        {newProjectErr && <span style={{ color: "#ff8a8a", fontSize: 12 }}>{newProjectErr}</span>}
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button type="button" disabled={newProjectSaving} onClick={handleCreateProjectInline} style={{ background: "#3D8DFF", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", cursor: "pointer", opacity: newProjectSaving ? 0.6 : 1 }}>{newProjectSaving ? "Creating…" : "Create"}</button>
-                          <button type="button" onClick={() => { setCreatingProject(false); setNewProjectErr(null); }} style={{ background: "transparent", border: "1px solid #2a3a52", color: "#8FA0B8", borderRadius: 8, padding: "8px 14px", cursor: "pointer" }}>Cancel</button>
-                        </div>
-                      </div>
-                    )}
-                  </>
+                  <select value={projectId} onChange={e => setProjectId(e.target.value)} required
+                    style={{ background: "#0B1420", border: "1px solid #1E2F44", borderRadius: 10, padding: "10px 12px", color: "#eee", outline: "none" }}>
+                    <option value="" disabled>— select project —</option>
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name || p.slug || p.id.slice(0, 8)}</option>
+                    ))}
+                  </select>
                 )}
+                {projects.length > 0 && <Link href="/projects" style={{ fontSize: 11, color: "#8fb8ff", textDecoration: "none" }}>Manage projects →</Link>}
               </label>
 
               {formErr && <div style={{ background: "rgba(255,90,90,.1)", border: "1px solid rgba(255,90,90,.25)", color: "#FF8A8A", padding: "10px 12px", borderRadius: 10, fontSize: 12 }}>{formErr}</div>}
