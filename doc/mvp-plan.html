@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Content Loop — План реализации MVP</title>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#121820; --panel2:#1A232F; --card:#161E28; --line:#1E2A38;
+    --ink:#E8EEF4; --muted:#8B97A6; --dim:#5A6777;
+    --blue:#3D8DFF; --cyan:#6DCBF4; --green:#1DB574; --amber:#F5A524; --red:#E05252;
+    --radius:16px; --radius2:12px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0; font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:var(--bg); color:var(--ink); line-height:1.5; -webkit-font-smoothing:antialiased}
+  a{color:var(--cyan); text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1120px; margin:0 auto; padding:0 24px}
+  /* topbar */
+  .topbar{position:sticky; top:0; z-index:50; backdrop-filter:blur(16px); background:rgba(11,15,20,.82); border-bottom:1px solid var(--line)}
+  .topbar-inner{display:flex; align-items:center; justify-content:space-between; gap:16px; height:56px}
+  .brand{display:flex; align-items:center; gap:12px}
+  .logo{width:32px; height:32px; border-radius:9px; background:linear-gradient(135deg, var(--blue), var(--cyan)); display:grid; place-items:center; font-weight:800; font-size:14px; color:#fff}
+  .brand b{font-size:15px; letter-spacing:.02em}
+  .brand span{font-size:12px; color:var(--muted)}
+  .nav{display:flex; gap:6px; flex-wrap:wrap}
+  .nav a{font-size:13px; color:var(--muted); padding:6px 10px; border-radius:999px; border:1px solid transparent}
+  .nav a.active, .nav a:hover{color:var(--ink); border-color:var(--line); background:var(--panel)}
+  /* hero */
+  .hero{padding:40px 0 12px}
+  .eyebrow{font-size:11px; letter-spacing:.14em; font-weight:700; color:var(--cyan); text-transform:uppercase}
+  .hero h1{font-size:44px; line-height:.95; margin:10px 0 14px; font-weight:800; letter-spacing:-.03em}
+  .hero h1 em{font-style:normal; background:linear-gradient(90deg, var(--blue), var(--cyan)); -webkit-background-clip:text; -webkit-text-fill-color:transparent}
+  .hero p{max-width:720px; color:var(--muted); font-size:17px; margin:0}
+  .hero-grid{display:grid; grid-template-columns:1.15fr .85fr; gap:16px; margin-top:22px}
+  @media(max-width:860px){.hero-grid{grid-template-columns:1fr} .hero h1{font-size:34px}}
+  .kpi{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+  .kpi .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius2); padding:14px}
+  .kpi b{font-size:22px} .kpi label{display:block; font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; margin-bottom:2px}
+  .kpi small{color:var(--dim); font-size:12px}
+  .hero-card{background:linear-gradient(180deg, var(--panel2), var(--panel)); border:1px solid var(--line); border-radius:var(--radius); padding:18px}
+  .hero-card h3{margin:0 0 8px; font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+  .check{list-style:none; padding:0; margin:0; display:grid; gap:8px}
+  .check li{display:flex; gap:10px; font-size:13.5px; color:#CDD7E3}
+  .check li i{width:22px; height:22px; border-radius:999px; background:rgba(61,141,255,.15); color:var(--blue); display:grid; place-items:center; font-style:normal; font-size:12px; flex:0 0 22px; margin-top:1px}
+  .check li.done i{background:rgba(29,181,116,.15); color:var(--green)}
+  /* section */
+  section{padding:28px 0}
+  .sec-head{display:flex; align-items:end; justify-content:space-between; gap:16px; margin-bottom:16px}
+  .sec-head h2{margin:0; font-size:26px; letter-spacing:-.02em}
+  .sec-head p{margin:0; color:var(--muted); font-size:13.5px; max-width:560px}
+  .badge{font-size:11px; letter-spacing:.08em; text-transform:uppercase; font-weight:700; padding:6px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted)}
+  /* tabs */
+  .tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+  .tab{padding:8px 14px; border-radius:999px; border:1px solid var(--line); background:transparent; color:var(--muted); font-size:13px; font-weight:600; cursor:pointer}
+  .tab.active{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+  .stack-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px}
+  @media(max-width:960px){.stack-grid{grid-template-columns:1fr}}
+  .stack{border:1px solid var(--line); border-radius:var(--radius); background:var(--card); overflow:hidden; position:relative}
+  .stack.rec{border-color:rgba(61,141,255,.45); box-shadow:0 0 0 1px rgba(61,141,255,.25), 0 8px 32px rgba(61,141,255,.12)}
+  .stack.rec::before{content:"РЕКОМЕНДУЕТСЯ"; position:absolute; top:12px; right:12px; font-size:10px; letter-spacing:.1em; font-weight:800; background:var(--blue); color:#fff; padding:4px 8px; border-radius:999px}
+  .stack-head{padding:16px 16px 12px; border-bottom:1px solid var(--line)}
+  .stack-head h3{margin:0; font-size:16px}
+  .stack-head p{margin:4px 0 0; color:var(--muted); font-size:12.5px}
+  .stack-body{padding:14px 16px 16px; display:grid; gap:12px}
+  .pill-row{display:flex; flex-wrap:wrap; gap:6px}
+  .pill{font-size:11px; font-weight:600; padding:5px 8px; border-radius:999px; background:var(--panel2); border:1px solid var(--line); color:#C7D2DE}
+  .pill.blue{background:rgba(61,141,255,.12); border-color:rgba(61,141,255,.25); color:#A9C7FF}
+  .proscons{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .proscons div{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px}
+  .proscons h4{margin:0 0 6px; font-size:11px; letter-spacing:.08em; text-transform:uppercase}
+  .proscons ul{margin:0; padding-left:16px; font-size:12.5px; color:#C7D2DE}
+  .proscons li{margin:3px 0}
+  .stack-foot{display:flex; gap:8px; padding:0 16px 16px}
+  .btn{flex:1; padding:9px 12px; border-radius:10px; font-size:13px; font-weight:700; border:1px solid var(--line); background:var(--panel2); color:var(--ink); cursor:pointer; text-align:center}
+  .btn.primary{background:var(--blue); border-color:var(--blue); color:#fff}
+  .compare{margin-top:14px; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; background:var(--panel)}
+  .compare h3{margin:0; padding:14px 16px; font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--line)}
+  .table{width:100%; border-collapse:collapse; font-size:13px}
+  .table th{color:var(--dim); font-weight:600; text-align:left; padding:10px 14px; font-size:11px; letter-spacing:.06em; text-transform:uppercase; border-bottom:1px solid var(--line)}
+  .table td{padding:11px 14px; border-bottom:1px solid rgba(30,42,56,.7); color:#D6E0EC}
+  .table tr:last-child td{border-bottom:none}
+  .table td:first-child{color:var(--ink); font-weight:600; white-space:nowrap}
+  .score{width:74px; height:6px; border-radius:999px; background:var(--panel2); border:1px solid var(--line); overflow:hidden; display:inline-block; vertical-align:middle; margin-left:6px}
+  .score i{display:block; height:100%; background:linear-gradient(90deg, var(--blue), var(--cyan))}
+  /* arch */
+  .arch{border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); overflow:hidden}
+  .arch-head{display:flex; gap:10px; align-items:center; padding:14px 16px; border-bottom:1px solid var(--line)}
+  .dot{width:10px; height:10px; border-radius:999px}
+  .arch-body{padding:16px}
+  .diagram{display:grid; grid-template-columns:1fr 28px 1fr; gap:12px; align-items:start}
+  @media(max-width:760px){.diagram{grid-template-columns:1fr}}
+  .box{border:1px solid var(--line); border-radius:14px; background:var(--card); padding:14px}
+  .box h4{margin:0 0 8px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--cyan)}
+  .box ul{margin:0; padding-left:16px; font-size:13px; color:#C7D2DE}
+  .box code{font-size:11px; background:var(--panel2); border:1px solid var(--line); padding:1px 6px; border-radius:6px}
+  .arrow{display:grid; place-items:center; color:var(--dim); font-size:18px; padding-top:22px}
+  /* roadmap */
+  .road{position:relative; padding-left:22px}
+  .road::before{content:""; position:absolute; left:7px; top:6px; bottom:6px; width:2px; background:linear-gradient(var(--blue), var(--cyan), transparent); border-radius:999px}
+  .phase{border:1px solid var(--line); border-radius:var(--radius); background:var(--card); margin-bottom:12px; overflow:hidden}
+  .phase-head{display:flex; gap:14px; padding:14px 16px; cursor:pointer; user-select:none}
+  .phase-head:hover{background:rgba(255,255,255,.02)}
+  .num{width:36px; height:36px; border-radius:10px; background:var(--panel2); border:1px solid var(--line); display:grid; place-items:center; font-weight:800; font-size:13px; flex:0 0 36px}
+  .phase.active .num{background:var(--blue); color:#fff; border-color:var(--blue)}
+  .phase-head h3{margin:0; font-size:14px}
+  .phase-head p{margin:2px 0 0; font-size:12.5px; color:var(--muted)}
+  .meta{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
+  .meta span{font-size:11px; font-weight:700; padding:4px 8px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); color:#C7D2DE}
+  .meta span.g{border-color:rgba(29,181,116,.3); color:#B6F0D8; background:rgba(29,181,116,.1)}
+  .phase-body{display:none; padding:0 16px 16px 66px; border-top:1px solid var(--line); background:var(--panel)}
+  .phase.active .phase-body{display:block}
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:12px}
+  @media(max-width:760px){.cols{grid-template-columns:1fr}}
+  .cols h4{margin:0 0 6px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+  .cols ul{margin:0; padding-left:16px; font-size:12.5px; color:#CDD7E3}
+  .gate{margin-top:12px; background:rgba(61,141,255,.08); border:1px solid rgba(61,141,255,.2); border-radius:10px; padding:10px 12px; font-size:12.5px}
+  .gate b{color:var(--blue)}
+  /* other */
+  .two{ display:grid; grid-template-columns:1fr 1fr; gap:14px}
+  @media(max-width:860px){.two{grid-template-columns:1fr}}
+  .cardx{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px}
+  .cardx h3{margin:0 0 8px; font-size:14px}
+  .cardx p{margin:0; color:var(--muted); font-size:13px}
+  .list{margin:8px 0 0; padding-left:16px; font-size:13px; color:#CDD7E3}
+  .adr{display:grid; gap:8px}
+  .adr-row{display:flex; gap:12px; align-items:center; justify-content:space-between; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--panel)}
+  .adr-row b{font-size:13px}
+  .adr-row small{color:var(--muted); font-size:12px}
+  .adr-row .choice{font-size:12px; font-weight:700; padding:6px 10px; border-radius:999px; background:var(--panel2); border:1px solid var(--line)}
+  .adr-row .choice.ok{background:rgba(29,181,116,.12); border-color:rgba(29,181,116,.25); color:#B6F0D8}
+  .cta{border:1px solid rgba(61,141,255,.3); background:linear-gradient(180deg, rgba(61,141,255,.14), rgba(109,203,244,.08)); border-radius:var(--radius); padding:18px; display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap}
+  .cta h3{margin:0; font-size:18px}
+  .cta p{margin:4px 0 0; color:var(--muted); font-size:13px}
+  .footer{padding:18px 0 32px; color:var(--dim); font-size:12px; border-top:1px solid var(--line); margin-top:18px}
+  .kbd{font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11px; background:var(--panel2); border:1px solid var(--line); border-bottom-width:2px; padding:2px 6px; border-radius:6px}
+  .hl{color:var(--cyan)} .hl2{color:var(--amber)}
+  .chip{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; letter-spacing:.04em; padding:4px 8px; border-radius:999px; border:1px solid var(--line); background:var(--panel2)}
+  .state{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px}
+  .state span{font-size:11px; font-weight:700; padding:5px 8px; border-radius:999px; background:var(--panel2); border:1px solid var(--line); color:#C7D2DE}
+  .state span.on{background:var(--blue); color:#fff; border-color:var(--blue)}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <div class="brand">
+      <div class="logo">≋</div>
+      <div><b>Content Loop</b><br><span>MVP · план реализации</span></div>
+    </div>
+    <nav class="nav">
+      <a href="#stack">Стек</a>
+      <a href="#org">Организация</a>
+      <a href="#arch">Архитектура</a>
+      <a href="#road">Роадмап</a>
+      <a href="#next">Старт</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap hero">
+  <div class="eyebrow">Исследование → решение → реализация · 31 августа 2026</div>
+  <h1>От плана к <em>рабочему MVP</em> за 6–8 недель</h1>
+  <p>Отдельный <b style="color:#fff">content control plane</b> с обязательным human approval. FamilyOS — первый адаптер, Telegram — первый канал доставки. Генерация — товарная, ценность — в памяти, аудите и рефлексии.</p>
+
+  <div class="hero-grid">
+    <div>
+      <div class="kpi">
+        <div class="card"><label>Срез MVP</label><b>PattayaDom</b><small>FamilyOS draft → Telegram</small></div>
+        <div class="card"><label>Объём пилота</label><b>8–12</b><small>материалов · 2 темы · 2 формата</small></div>
+        <div class="card"><label>Цель пилота</label><b style="color:var(--green)">−30% времени</b><small>≥70% draft → publish</small></div>
+      </div>
+      <div class="state">
+        <span class="on">idea → brief → draft → review → publish → measure → reflect</span>
+        <span>idempotency + audit + outbox</span>
+        <span>canonical Markdown</span>
+      </div>
+    </div>
+    <div class="hero-card">
+      <h3>Что уже решено</h3>
+      <ul class="check">
+        <li class="done"><i>✓</i><span><b>Отдельный сервис + БД</b> рядом с FamilyOS в K3s, не модуль внутри</span></li>
+        <li class="done"><i>✓</i><span>Telegram и FamilyOS — через <b>versioned adapter</b>, Facebook — после пилота</span></li>
+        <li class="done"><i>✓</i><span>LLM только внутри шагов, <b>публикация — только после approval</b></span></li>
+        <li><i>→</i><span>Осталось: выбрать стек, завести репо, закрыть Этап 0 за 2–3 дня</span></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<section id="stack" class="wrap">
+  <div class="sec-head">
+    <div><h2>Варианты стека</h2><p>Три реалистичные траектории под твою инфраструктуру (K3s на nebula, FamilyOS на Go). Рекомендация — <b style="color:#fff">Вариант A</b>.</p></div>
+    <span class="badge">ADR до кода</span>
+  </div>
+
+  <div class="stack-grid">
+    <!-- A -->
+    <div class="stack rec">
+      <div class="stack-head">
+        <h3>A · Go + Postgres + Next.js</h3>
+        <p>Единый язык с FamilyOS · reuse авторизации, деплоя, секретов</p>
+      </div>
+      <div class="stack-body">
+        <div class="pill-row">
+          <span class="pill blue">Go 1.22 · chi</span><span class="pill">Postgres 16</span><span class="pill">pgmq / outbox</span><span class="pill">Next.js 15 (admin)</span><span class="pill">OpenAI / opencode gateway</span>
+        </div>
+        <div class="proscons">
+          <div><h4 style="color:var(--green)">Плюсы</h4><ul><li>Дешевле поддержка — одна платформа с FamilyOS</li><li>Простой деплой в твой K3s, те же Secrets/Ingress</li><li>Сильная консистентность, нативная idempotency</li></ul></div>
+          <div><h4 style="color:var(--amber)">Минусы</h4><ul><li>UI чуть дольше, чем на TS-стеке</li><li>LLM-обвязка чуть более ручная</li></ul></div>
+        </div>
+        <div style="font-size:12.5px; color:var(--muted)">Подходит если хочешь <b style="color:#fff">минимум зоопарка</b> и быстрый перенос паттернов FamilyOS.</div>
+      </div>
+      <div class="stack-foot"><button class="btn primary" onclick="document.getElementById('compare').scrollIntoView({behavior:'smooth'})">Выбрать A</button><span class="btn" style="flex:0 0 auto; pointer-events:none">~5–6 нед</span></div>
+    </div>
+    <!-- B -->
+    <div class="stack">
+      <div class="stack-head">
+        <h3>B · TypeScript · Hono/Nest + Prisma</h3>
+        <p>Быстрый UI, общий код с review-формой, богатая экосистема LLM</p>
+      </div>
+      <div class="stack-body">
+        <div class="pill-row">
+          <span class="pill blue">TS · Hono / Nest</span><span class="pill">Prisma · Postgres</span><span class="pill">BullMQ / pg-boss</span><span class="pill">Next.js 15</span><span class="pill">Vercel AI SDK</span>
+        </div>
+        <div class="proscons">
+          <div><h4 style="color:var(--green)">Плюсы</h4><ul><li>Самый быстрый UI + формы approval</li><li>Много готовых SDK для LLM и валидации (zod)</li></ul></div>
+          <div><h4 style="color:var(--amber)">Минусы</h4><ul><li>Второй рантайм в кластере</li><li>Придётся дублировать часть инфры FamilyOS</li></ul></div>
+        </div>
+        <div style="font-size:12.5px; color:var(--muted)">Подходит если MVP делает <b style="color:#fff">один TS-разработчик</b> и UI важнее унификации.</div>
+      </div>
+      <div class="stack-foot"><button class="btn" onclick="document.getElementById('compare').scrollIntoView({behavior:'smooth'})">Вариант B</button><span class="btn" style="flex:0 0 auto;pointer-events:none">~5 нед</span></div>
+    </div>
+    <!-- C -->
+    <div class="stack">
+      <div class="stack-head">
+        <h3>C · Python · FastAPI + LangGraph</h3>
+        <p>Максимум для LLM-оркестрации, если планируешь сложный граф сразу</p>
+      </div>
+      <div class="stack-body">
+        <div class="pill-row">
+          <span class="pill blue">Python 3.11 · FastAPI</span><span class="pill">LangGraph</span><span class="pill">Postgres + pgvector</span><span class="pill">Temporal (позже)</span>
+        </div>
+        <div class="proscons">
+          <div><h4 style="color:var(--green)">Плюсы</h4><ul><li>Нативная LangGraph persistence + interrupts</li><li>Быстрые эксперименты с промптами</li></ul></div>
+          <div><h4 style="color:var(--amber)">Минусы</h4><ul><li>Переизбыточен для MVP (6 шагов — не граф)</li><li>Отдельный рантайм, тяжелее деплой</li></ul></div>
+        </div>
+        <div style="font-size:12.5px; color:var(--muted)">Брать только если <b style="color:#fff">после пилота</b> появятся ветвления/replay. На MVP — оверхед.</div>
+      </div>
+      <div class="stack-foot"><button class="btn" onclick="document.getElementById('compare').scrollIntoView({behavior:'smooth'})">Вариант C</button><span class="btn" style="flex:0 0 auto;pointer-events:none">~6–7 нед</span></div>
+    </div>
+  </div>
+
+  <div id="compare" class="compare">
+    <h3>Сравнение · 5 — максимум</h3>
+    <table class="table">
+      <thead><tr><th>Критерий</th><th>A · Go</th><th>B · TS</th><th>C · Python</th></tr></thead>
+      <tbody>
+        <tr><td>Скорость старта</td><td>4 <span class="score"><i style="width:80%"></i></span></td><td>5 <span class="score"><i style="width:100%"></i></span></td><td>3 <span class="score"><i style="width:60%"></i></span></td></tr>
+        <tr><td>Совместимость с FamilyOS</td><td>5 <span class="score"><i style="width:100%"></i></span></td><td>3 <span class="score"><i style="width:60%"></i></span></td><td>2 <span class="score"><i style="width:40%"></i></span></td></tr>
+        <tr><td>Стоимость поддержки</td><td>5 <span class="score"><i style="width:100%"></i></span></td><td>3 <span class="score"><i style="width:60%"></i></span></td><td>2 <span class="score"><i style="width:40%"></i></span></td></tr>
+        <tr><td>LLM-оркестрация</td><td>4 <span class="score"><i style="width:80%"></i></span></td><td>4 <span class="score"><i style="width:80%"></i></span></td><td>5 <span class="score"><i style="width:100%"></i></span></td></tr>
+        <tr><td>Риски MVP</td><td style="color:var(--green)">низкие</td><td style="color:var(--amber)">средние</td><td style="color:var(--red)">высокие</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="color:var(--dim); font-size:12px; margin:8px 2px 0">Рекомендация исследования (implementation-plan.md) — <b style="color:var(--muted)">Postgres + собственный state machine + canonical Markdown</b> — полностью ложится на вариант A. LangGraph/Temporal — после измеренного усложнения.</p>
+</section>
+
+<section id="org" class="wrap">
+  <div class="sec-head">
+    <div><h2>Организация и эксплуатация</h2><p>Как не превратить MVP в ещё один монолит и не размазать состояние по n8n.</p></div>
+  </div>
+  <div class="two">
+    <div class="cardx">
+      <h3>📦 Репозиторий</h3>
+      <p>Отдельный репозиторий <code>content-loop</code>. На пилоте допустим <code>familyos/content-loop</code> как отдельный deployable сервис.</p>
+      <ul class="list">
+        <li><code>/api</code> — OpenAPI, JSON Schema контента</li>
+        <li><code>/internal/domain</code> — state machine, entities</li>
+        <li><code>/internal/adapters/{telegram,familyos}</code></li>
+        <li><code>/web</code> — Next.js review queue</li>
+        <li><code>/deploy/k8s</code> — manifests, Helm values</li>
+      </ul>
+    </div>
+    <div class="cardx">
+      <h3>🚀 Деплой на nebula (K3s)</h3>
+      <p>Рядом с FamilyOS, общая эксплуатация, изолированные секреты.</p>
+      <ul class="list">
+        <li>Отдельная БД <code>content_loop</code> (Postgres), бэкап отдельно</li>
+        <li>Ingress: <code>content-loop.beliberde.net</code> + internal API</li>
+        <li>Secrets: <code>TG_BOT_TOKEN</code>, <code>FAMILYOS_API_KEY</code> — в K8s Secrets / Vault</li>
+        <li>Workers: <code>publisher</code>, <code>collector</code> — только они ходят наружу</li>
+      </ul>
+    </div>
+  </div>
+  <div class="two" style="margin-top:14px">
+    <div class="cardx">
+      <h3>🔒 Границы безопасности</h3>
+      <ul class="list">
+        <li>Контентные workers <b>не имеют</b> доступа к БД FamilyOS</li>
+        <li>Публикация — только через publisher worker + audit log</li>
+        <li>Webhook Telegram проверяет secret, rate-limit + retry + DLQ</li>
+        <li>Каждая публикация привязана к immutable <code>content_version</code></li>
+      </ul>
+    </div>
+    <div class="cardx">
+      <h3>🧩 Роль n8n</h3>
+      <ul class="list">
+        <li>Только расписания, cron-триггеры, временные интеграции</li>
+        <li><b>Не source of truth</b> — состояние живёт в Content Loop DB + outbox</li>
+        <li>После MVP — оценить замену на собственный scheduler</li>
+      </ul>
+      <p style="margin-top:10px; font-size:12px; color:var(--dim)">Почему не n8n как ядро: логика расползается по workflow, нет транзакционного аудита публикаций.</p>
+    </div>
+  </div>
+</section>
+
+<section id="arch" class="wrap">
+  <div class="sec-head">
+    <div><h2>Архитектура ядра</h2><p>Ядро владеет состоянием, каналы — доставкой, FamilyOS — своими представлениями.</p></div>
+  </div>
+  <div class="arch">
+    <div class="arch-head">
+      <span class="dot" style="background:var(--red)"></span><span class="dot" style="background:var(--amber)"></span><span class="dot" style="background:var(--green)"></span>
+      <span style="margin-left:8px; font-size:12px; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; font-weight:700">Content Loop · control plane</span>
+      <span style="margin-left:auto; font-size:11px; color:var(--dim)">Postgres · outbox · idempotency</span>
+    </div>
+    <div class="arch-body">
+      <div class="diagram">
+        <div class="box">
+          <h4>Content Loop API + DB</h4>
+          <ul>
+            <li><code>project</code> — политика, языки, риски</li>
+            <li><code>content_item</code> + <code>content_version</code> (immutable)</li>
+            <li><code>channel_variant</code> — рендер под канал</li>
+            <li><code>approval</code> · <code>publication</code> · <code>metric_snapshot</code></li>
+            <li><code>reflection</code> · <code>source</code> · <code>audit_event</code></li>
+          </ul>
+          <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap">
+            <span class="chip" style="border-color:rgba(61,141,255,.25); color:#A9C7FF">brief → draft → review → publish</span>
+            <span class="chip">durable job / outbox</span>
+          </div>
+        </div>
+        <div class="arrow">→</div>
+        <div style="display:grid; gap:10px">
+          <div class="box" style="border-left:3px solid var(--blue)">
+            <h4>Adapter · Telegram</h4>
+            <ul><li>publish текст/изображение</li><li>сохраняет <code>chat_id / message_id / permalink</code></li><li>reactions webhook + UTM links</li></ul>
+          </div>
+          <div class="box" style="border-left:3px solid var(--cyan); background:rgba(109,203,244,.06)">
+            <h4>Adapter · FamilyOS</h4>
+            <ul><li><code>familyos.pattayadom_article</code></li><li><code>POST draft is_published=false → PATCH publish</code></li><li>reconcile по external ID, 3 mapping'а</li></ul>
+          </div>
+          <div class="box" style="opacity:.6">
+            <h4>Adapter · Facebook Page</h4>
+            <ul><li>после пилота, Page token + App Review</li></ul>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:14px; display:grid; grid-template-columns:1fr 1fr; gap:10px">
+        <div style="background:var(--card); border:1px dashed var(--line); border-radius:12px; padding:12px">
+          <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700">Контракт адаптера</div>
+          <pre style="margin:8px 0 0; font-size:11.5px; line-height:1.5; color:#C7D2DE; white-space:pre-wrap">capabilities() · validate(payload)
+createDraft(payload, idempotencyKey)
+updateDraft(externalID, payload)
+publish(externalID) · unpublish(externalID)
+fetchPublication(externalID)
+fetchMetrics(externalID, since?)</pre>
+        </div>
+        <div style="background:var(--card); border:1px dashed var(--line); border-radius:12px; padding:12px">
+          <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700">Генерация = 6 шагов</div>
+          <pre style="margin:8px 0 0; font-size:11.5px; line-height:1.5; color:#C7D2DE; white-space:pre-wrap">plan_topic → build_brief → draft_canonical
+→ render_variant → verify → prepare_review
+ModelProvider · schema validation до/после LLM</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="two" style="margin-top:14px">
+    <div class="cardx">
+      <h3>Состояния материала</h3>
+      <p style="font-family:ui-monospace, monospace; font-size:11px; line-height:1.8; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; color:#CDD7E3">idea → brief_ready → drafting → review_ready → approved | rejected | changes_requested → scheduled → publishing → published | partially_published | failed → measuring → reflected</p>
+      <p style="font-size:12px; color:var(--dim); margin-top:8px">Публикации по каналам — отдельные состояния. Ошибка Facebook не откатывает Telegram. Повтор с тем же idempotency key не создаёт дубль.</p>
+    </div>
+    <div class="cardx">
+      <h3>Что генерирует LLM, а что — нет</h3>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px">
+        <div style="background:rgba(29,181,116,.08); border:1px solid rgba(29,181,116,.2); border-radius:10px; padding:10px">
+          <div style="font-size:11px; font-weight:800; color:var(--green)">✓ РАЗРЕШЕНО</div>
+          <ul style="margin:6px 0 0; padding-left:16px; font-size:12.5px; color:#C7D2DE"><li>темы, углы, брифы</li><li>canonical draft + варианты</li><li>проверка стиля/дублей</li><li>гипотезы по метрикам</li></ul>
+        </div>
+        <div style="background:rgba(224,82,82,.08); border:1px solid rgba(224,82,82,.2); border-radius:10px; padding:10px">
+          <div style="font-size:11px; font-weight:800; color:var(--red)">✕ ЗАПРЕЩЕНО</div>
+          <ul style="margin:6px 0 0; padding-left:16px; font-size:12.5px; color:#C7D2DE"><li>публикация без approval</li><li>гипотеза → факт</li><li>состояние в чате/векторе</li><li>прямая запись в FamilyOS</li></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="road" class="wrap">
+  <div class="sec-head">
+    <div><h2>Роадмап MVP · 6 этапов</h2><p>Кликни этап чтобы развернуть. Каждый этап заканчивается gate — без него не идём дальше.</p></div>
+    <span class="badge">6–8 недель · 1 разработчик + редактор</span>
+  </div>
+
+  <div class="road">
+    <!-- 0 -->
+    <div class="phase active" onclick="this.classList.toggle('active')">
+      <div class="phase-head">
+        <div class="num">0</div>
+        <div style="flex:1">
+          <h3>Контракт и baseline — 2–3 дня</h3>
+          <p>Фиксируем язык системы до первой строки кода</p>
+          <div class="meta"><span>2–3 дня</span><span class="g">Gate: материал ↔ версии ↔ каналы однозначно связаны</span></div>
+        </div>
+        <div style="color:var(--dim)">▾</div>
+      </div>
+      <div class="phase-body">
+        <div class="cols">
+          <div><h4>Сделать</h4><ul><li>JSON Schema: ContentItem / Version / ChannelVariant / Publication</li><li>Редакционная политика PattayaDom (аудитория, intent, forbidden claims)</li><li>Собрать 20–30 последних публикаций + реакции (baseline)</li><li>Замерить текущее время подготовки и edit distance</li></ul></div>
+          <div><h4>Артефакты</h4><ul><li><code>/api/schemas/*.json</code></li><li><code>docs/editorial-policy-pattayadom.md</code></li><li><code>docs/risk-policy.md</code> — визы/право/цены = approval каждого</li><li>Таблица baseline-метрик</li></ul></div>
+        </div>
+        <div class="gate"><b>Gate:</b> любой материал можно однозначно связать с версиями и каналами; forbidden claims формализованы.</div>
+      </div>
+    </div>
+    <!-- 1 -->
+    <div class="phase active" onclick="this.classList.toggle('active')">
+      <div class="phase-head">
+        <div class="num">1</div>
+        <div style="flex:1">
+          <h3>Реестр и workflow — 1 неделя</h3>
+          <p>Сервис, БД, state machine, outbox, очередь review</p>
+          <div class="meta"><span>1 неделя</span><span class="g">Gate: restart между draft и approval без потери состояния</span></div>
+        </div>
+        <div style="color:var(--dim)">▾</div>
+      </div>
+      <div class="phase-body">
+        <div class="cols">
+          <div><h4>Сделать</h4><ul><li>Сервис + Postgres, миграции, seed проекта PattayaDom</li><li>State machine + API: idea / brief / version / approval</li><li>Immutable versions + audit_events + idempotency keys</li><li>Outbox worker, retry с backoff, простая очередь review</li></ul></div>
+          <div><h4>Не делать</h4><ul><li>Генерацию (этап 2)</li><li>Адаптеры каналов (этапы 3–4)</li><li>SaaS, billing, multi-tenant</li></ul></div>
+        </div>
+        <div class="gate"><b>Gate:</b> сервис переживает рестарт между draft и approval; повторный запрос не плодит сущности.</div>
+      </div>
+    </div>
+    <!-- 2 -->
+    <div class="phase active" onclick="this.classList.toggle('active')">
+      <div class="phase-head">
+        <div class="num">2</div>
+        <div style="flex:1">
+          <h3>Генерация и проверка — 1 неделя</h3>
+          <p>Model gateway, дедупликация, рендеры, deterministic checks</p>
+          <div class="meta"><span>1 неделя</span><span class="g">Gate: 10 брифов проходят pipeline, claim без source виден reviewer</span></div>
+        </div>
+        <div style="color:var(--dim)">▾</div>
+      </div>
+      <div class="phase-body">
+        <div class="cols">
+          <div><h4>Сделать</h4><ul><li>Provider-neutral ModelProvider (opencode / OpenAI)</li><li>Topic deduplication по архиву</li><li>Canonical draft + renderers: Telegram / FamilyOS</li><li>Сохранение sources + claims; checks: длина, поля, ссылки, запреты</li><li>Diff AI draft vs approved</li></ul></div>
+          <div><h4>Проверки</h4><ul><li>Schema validation до и после LLM</li><li>prompt / model / version фиксируются в content_version</li><li>Ни один непроверенный high-risk claim не скрыт</li></ul></div>
+        </div>
+      </div>
+    </div>
+    <!-- 3 -->
+    <div class="phase" onclick="this.classList.toggle('active')">
+      <div class="phase-head">
+        <div class="num">3</div>
+        <div style="flex:1">
+          <h3>FamilyOS adapter — 3–4 дня</h3>
+          <p>familyos.pattayadom_article · draft → publish · reconcile</p>
+          <div class="meta"><span>3–4 дня</span><span class="g">Gate: повторный publish не создаёт дубль</span></div>
+        </div>
+        <div style="color:var(--dim)">▾</div>
+      </div>
+      <div class="phase-body">
+        <div class="cols">
+          <div><h4>Сделать</h4><ul><li>Adapter: createDraft(is_published=false) → update → publish</li><li>X-API-Key с минимальным scope, логи без секретов</li><li>Contract tests на mock FamilyOS API</li><li>Обработка 3 схем: PattayaDom / Soul / AI Notes</li></ul></div>
+          <div><h4>Паттерн</h4><ul><li><code>POST /api/v1/articles</code> → сохранить external ID</li><li><code>PATCH /api/v1/articles/{id}</code> — только утверждённое</li><li>Ошибка API не меняет approved version</li></ul></div>
+        </div>
+      </div>
+    </div>
+    <!-- 4 -->
+    <div class="phase" onclick="this.classList.toggle('active')">
+      <div class="phase-head">
+        <div class="num">4</div>
+        <div style="flex:1">
+          <h3>Telegram adapter — 3–4 дня</h3>
+          <p>Публикация, permalink, reactions, UTM, reconcile</p>
+          <div class="meta"><span>3–4 дня</span><span class="g">Gate: один idempotency key = одно сообщение</span></div>
+        </div>
+        <div style="color:var(--dim)">▾</div>
+      </div>
+      <div class="phase-body">
+        <div class="cols">
+          <div><h4>Сделать</h4><ul><li>Публикация текста/изображения через Bot API</li><li>Сохранение chat_id / message_id / permalink + idempotency</li><li>Webhook: message_reaction + message_reaction_count</li><li>UTM / redirect links, retry, rate-limit</li></ul></div>
+          <div><h4>Ограничения</h4><ul><li>Бот — админ канала, подписка на reactions</li><li>Просмотры — не гарантированы в Bot API</li><li>MVP-сигналы: реакции, комменты группы, клики по UTM</li></ul></div>
+        </div>
+      </div>
+    </div>
+    <!-- 5 -->
+    <div class="phase" onclick="this.classList.toggle('active')">
+      <div class="phase-head">
+        <div class="num">5</div>
+        <div style="flex:1">
+          <h3>Рефлексия — 1 неделя</h3>
+          <p>Snapshots, нормализация, weekly reflection → следующий brief</p>
+          <div class="meta"><span>1 неделя</span><span class="g">Gate: для каждого совета можно открыть исходные метрики</span></div>
+        </div>
+        <div style="color:var(--dim)">▾</div>
+      </div>
+      <div class="phase-body">
+        <div class="cols">
+          <div><h4>Сделать</h4><ul><li>Snapshots 1h / 24h / 7d, нормализация по каналу/формату/возрасту</li><li>Weekly reflection: observation / confidence / next_test / do_not_conclude</li><li>Следующий brief показывает использованные наблюдения</li></ul></div>
+          <div><h4>Пример вывода</h4><ul><li style="font-size:11.5px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px; list-style:none; margin-left:-16px">“Пошаговые визовые материалы получили больше сохранений”<br><span style="color:var(--dim)">confidence: medium · next_test: checklist vs narrative</span><br><span style="color:var(--red)">do_not_conclude: тема виз всегда сильнее недвижимости</span></li></ul></div>
+        </div>
+      </div>
+    </div>
+    <!-- 6 -->
+    <div class="phase" onclick="this.classList.toggle('active')">
+      <div class="phase-head">
+        <div class="num" style="background:var(--green); color:#fff; border-color:var(--green)">6</div>
+        <div style="flex:1">
+          <h3>Пилот — 2 недели</h3>
+          <p>8–12 материалов, 2 темы, 2 формата, weekly reflection</p>
+          <div class="meta"><span>2 недели</span><span class="g">Gate: решение — продолжать / упростить / остановить</span></div>
+        </div>
+        <div style="color:var(--dim)">▾</div>
+      </div>
+      <div class="phase-body">
+        <div class="cols">
+          <div><h4>Объём</h4><ul><li>8–12 материалов PattayaDom</li><li>Минимум 2 тематические группы, 2 формата Telegram</li><li>Review каждого материала, diff сохраняется</li><li>Одна weekly reflection после 1-й недели</li></ul></div>
+          <div><h4>Решение после</h4><ul><li>Продолжить ядро + добавить SoulArchitecture</li><li>Оставить как внутренний workflow</li><li>Остановить / упростить до n8n-набора</li><li>Только потом планировать Facebook</li></ul></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="two" style="margin-top:14px">
+    <div class="cardx" style="border-left:3px solid var(--green)">
+      <h3>Метрики пилота — продолжать если</h3>
+      <ul class="list"><li>100% публикаций имеют source version + approval</li><li>0 дублей из-за retry · ≥95% jobs без ручного восстановления</li><li>≥70% draft доходят до публикации · медианный edit distance &lt;35%</li><li>Время на материал −30% · один замысел = 2 channel variants</li><li>Reflection изменила ≥2 последующих briefs</li></ul>
+    </div>
+    <div class="cardx" style="border-left:3px solid var(--red)">
+      <h3>Остановить / упростить если</h3>
+      <ul class="list"><li>edit distance стабильно &gt;50%</li><li>Журнал публикаций неполный, метрики не влияют на решения</li><li>Поддержка дороже ручного процесса</li><li>Источники / claims не проверяются reviewer</li><li>&lt;70% черновиков доходят до публикации</li></ul>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="sec-head">
+    <div><h2>ADR — решить до кодинга</h2><p>Короткий чеклист решений. Без них — рассинхрон в первую неделю.</p></div>
+  </div>
+  <div class="adr">
+    <div class="adr-row"><div><b>Где живёт репозиторий?</b><br><small>Монорепо FamilyOS vs отдельный repo</small></div><span class="choice ok">Отдельный repo · на пилоте можно familyos/content-loop</span></div>
+    <div class="adr-row"><div><b>Postgres vs MySQL</b></div><span class="choice ok">MySQL 8 (JSON, outbox, как в FamilyOS)</span></div>
+    <div class="adr-row"><div><b>Язык ядра</b></div><span class="choice ok">Go (вариант A) — единый деплой с FamilyOS</span></div>
+    <div class="adr-row"><div><b>Оркестрация</b></div><span class="choice ok">Собственный state machine + outbox (MVP) → LangGraph позже</span></div>
+    <div class="adr-row"><div><b>Rich text</b></div><span class="choice ok">Canonical Markdown → adapter renderers (HTML/Tiptap)</span></div>
+    <div class="adr-row"><div><b>FamilyOS API auth</b></div><span class="choice">Отдельный scoped X-API-Key (спроектировать до SaaS)</span></div>
+    <div class="adr-row"><div><b>Изображения и лицензии</b></div><span class="choice">Хранить source + лицензию в <code>source</code> entity</span></div>
+    <div class="adr-row"><div><b>Метрики</b></div><span class="choice">Фиксировать denominator: доступная аудитория, возраст поста</span></div>
+  </div>
+</section>
+
+<section id="next" class="wrap">
+  <div class="cta">
+    <div>
+      <h3>Готов стартовать?</h3>
+      <p>Начни с Этапа 0 — 2 дня и у тебя контракты, без которых всё остальное расползётся.</p>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap">
+      <button class="btn primary" style="padding:12px 18px" onclick="window.scrollTo({top:0, behavior:'smooth'})">↑ К выбору стека</button>
+      <a href="decision-memo.md" style="padding:12px 18px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:13px; font-weight:700">decision-memo.md</a>
+      <a href="architecture.md" style="padding:12px 18px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:13px; font-weight:700">architecture.md</a>
+    </div>
+  </div>
+  <div class="two" style="margin-top:14px">
+    <div class="cardx">
+      <h3>Что сделать сегодня</h3>
+      <ol style="margin:8px 0 0; padding-left:18px; font-size:13px; color:#CDD7E3">
+        <li>Выбрать <b>вариант A</b> (или зафиксировать B) — 5 минут</li>
+        <li>Завести репо + <code>docker-compose.yml</code> (Postgres + сервис + web)</li>
+        <li>Закрыть Этап 0: schemas + editorial policy + baseline выборка</li>
+      </ol>
+    </div>
+    <div class="cardx">
+      <h3>Что не делать в MVP</h3>
+      <p style="font-size:13px; color:var(--muted)">Facebook adapter, автопубликация без approval, SaaS/billing/marketplace, fine-tuning, миграция старых материалов, multi-agent swarm. Всё это — после пилота.</p>
+      <p style="margin-top:8px; font-size:12px; color:var(--dim)">Последовательность расширения: PattayaDom → SoulArchitecture → AI Notes → Facebook → adapter SDK → внешний пилот → open source → SaaS.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="wrap footer">
+  <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap">
+    <span>Content Loop · MVP plan · сгенерировано 31.08.2026 · на основе <code>decision-memo.md</code> / <code>architecture.md</code> / <code>implementation-plan.md</code></span>
+    <span>Следующий шаг: <span class="kbd">Этап 0</span> — 2–3 дня</span>
+  </div>
+</footer>
+
+<script>
+  // highlight nav on scroll
+  const navLinks = document.querySelectorAll('.nav a');
+  const secs = ['stack','org','arch','road','next'].map(id=>document.getElementById(id));
+  addEventListener('scroll', ()=>{
+    let cur='stack';
+    for(const s of secs){ if(s && s.getBoundingClientRect().top < 120) cur=s.id; }
+    navLinks.forEach(a=>a.classList.toggle('active', a.getAttribute('href')==='#'+cur));
+  }, {passive:true});
+</script>
+</body>
+</html>
