@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Content Loop — как будет работать целиком</title>
+<style>
+  :root{--bg:#080C12; --panel:#111824; --card:#151E2B; --line:#1E2F44; --ink:#EAF0F8; --muted:#8FA0B8; --dim:#5E7188; --blue:#3D8DFF; --cyan:#6DCBF4; --green:#1DB574; --amber:#F7B500; --red:#FF5A5A; --radius:18px}
+  *{box-sizing:border-box} body{margin:0; font-family:Inter, -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:var(--bg); color:var(--ink); line-height:1.55; -webkit-font-smoothing:antialiased}
+  a{color:var(--cyan); text-decoration:none}
+  .wrap{max-width:1120px; margin:0 auto; padding:0 22px}
+  .top{position:sticky; top:0; z-index:40; backdrop-filter:blur(14px); background:rgba(8,12,18,.78); border-bottom:1px solid var(--line)}
+  .top-inner{height:54px; display:flex; align-items:center; justify-content:space-between; gap:16px}
+  .brand{display:flex; gap:10px; align-items:center} .logo{width:32px; height:32px; border-radius:10px; background:linear-gradient(135deg,var(--blue),var(--cyan)); display:grid; place-items:center; font-weight:800; color:#fff}
+  .nav{display:flex; gap:6px} .nav a{font-size:12px; color:var(--muted); padding:6px 10px; border-radius:999px; border:1px solid transparent} .nav a:hover{border-color:var(--line); color:var(--ink); background:var(--panel)}
+  .hero{padding:28px 0 10px} .eyebrow{font-size:11px; letter-spacing:.14em; font-weight:800; color:var(--cyan); text-transform:uppercase}
+  .hero h1{margin:8px 0 10px; font-size:42px; line-height:.95; letter-spacing:-.03em} .hero h1 em{font-style:normal; background:linear-gradient(90deg,var(--blue),var(--cyan)); -webkit-background-clip:text; -webkit-text-fill-color:transparent}
+  .hero p{max-width:760px; color:var(--muted); font-size:16.5px; margin:0}
+  .hero-grid{display:grid; grid-template-columns:1.25fr .75fr; gap:14px; margin-top:18px} @media(max-width:900px){.hero-grid{grid-template-columns:1fr} .hero h1{font-size:32px}}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px}
+  .kpi{display:grid; grid-template-columns:repeat(3,1fr); gap:10px} .kpi div{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px} .kpi b{font-size:20px} .kpi label{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); display:block}
+  section{padding:24px 0} .sec-head{display:flex; align-items:end; justify-content:space-between; gap:14px; margin-bottom:14px} .sec-head h2{margin:0; font-size:26px; letter-spacing:-.02em} .sec-head p{margin:0; color:var(--muted); font-size:13.5px; max-width:620px}
+  .badge{font-size:11px; letter-spacing:.08em; text-transform:uppercase; font-weight:800; padding:6px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted)}
+  /* diagram */
+  .arch{background:var(--panel); border:1px solid var(--line); border-radius:18px; overflow:hidden}
+  .arch-head{padding:12px 14px; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center; font-size:12px; color:var(--muted)}
+  .dot{width:10px; height:10px; border-radius:999px}
+  svg{width:100%; height:auto; display:block}
+  /* mock */
+  .mocks{display:grid; grid-template-columns:1fr 1fr; gap:14px} @media(max-width:900px){.mocks{grid-template-columns:1fr}}
+  .mock{background:var(--card); border:1px solid var(--line); border-radius:18px; overflow:hidden}
+  .mock-head{height:36px; display:flex; align-items:center; gap:8px; padding:0 12px; border-bottom:1px solid var(--line); background:var(--panel); font-size:12px; color:var(--muted)}
+  .mock-body{padding:14px}
+  .pill{font-size:11px; font-weight:700; padding:5px 8px; border-radius:999px; background:var(--panel); border:1px solid var(--line); color:#C7D2DE}
+  .btn{padding:8px 12px; border-radius:10px; font-size:12px; font-weight:800; border:1px solid var(--line); background:var(--panel); color:var(--ink)}
+  .btn.primary{background:var(--blue); border-color:var(--blue); color:#fff}
+  .table{width:100%; border-collapse:collapse; font-size:13px} .table th{font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); text-align:left; padding:10px 12px; border-bottom:1px solid var(--line)} .table td{padding:10px 12px; border-bottom:1px solid rgba(30,47,68,.6); color:#D6E0EC}
+  .road{position:relative; padding-left:20px} .road::before{content:""; position:absolute; left:7px; top:6px; bottom:6px; width:2px; background:linear-gradient(var(--blue),var(--cyan), transparent); border-radius:999px}
+  .phase{border:1px solid var(--line); border-radius:16px; background:var(--card); margin-bottom:10px; overflow:hidden}
+  .phase-head{padding:14px; display:flex; gap:12px; align-items:center; cursor:pointer} .num{width:32px; height:32px; border-radius:10px; background:var(--panel); border:1px solid var(--line); display:grid; place-items:center; font-weight:800; font-size:12px} .phase.active .num{background:var(--blue); color:#fff; border-color:var(--blue)}
+  .phase-body{display:none; padding:0 14px 14px 58px; border-top:1px solid var(--line); background:var(--panel)} .phase.active .phase-body{display:block}
+  .two{display:grid; grid-template-columns:1fr 1fr; gap:14px} @media(max-width:900px){.two{grid-template-columns:1fr}}
+  .hl{color:var(--cyan)} .ok{color:var(--green)} .warn{color:var(--amber)}
+  .chip{font-size:11px; font-weight:700; padding:4px 8px; border-radius:999px; border:1px solid var(--line); background:var(--panel); color:#C7D2DE}
+  .cta{border:1px solid rgba(61,141,255,.3); background:linear-gradient(180deg, rgba(61,141,255,.14), rgba(109,203,244,.06)); border-radius:18px; padding:18px; display:flex; gap:14px; justify-content:space-between; flex-wrap:wrap; align-items:center}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap top-inner"><div class="brand"><div class="logo">≋</div><div><b>Content Loop</b> <span style="color:var(--muted); font-size:12px">· куда идём</span></div></div><nav class="nav"><a href="#how">Как работает</a><a href="#auth">Авторизация</a><a href="#ui">Интерфейс</a><a href="#plan">План</a></nav></div></header>
+
+<div class="wrap hero">
+  <div class="eyebrow">MVP 6–8 недель · Go + MySQL · единый стенд на 8081</div>
+  <h1>Система целиком — <em>от идеи до рефлексии</em> с человеком в центре</h1>
+  <p>Не «агент пишет сам». Контент проходит <b style="color:#fff">человеческий шлюз</b> перед публикацией. Модель — дешёвая, глобальная (opencode-go), пользователь отвечает за claims и редакцию. Данные — строго привязаны к пользователю/команде.</p>
+  <div class="hero-grid">
+    <div class="card">
+      <div class="kpi">
+        <div><label>Сейчас на локалке</label><b class="ok">UP</b><div style="font-size:12px; color:var(--muted)">api 8081 · web 3000 · mysql 3306</div></div>
+        <div><label>Срез MVP</label><b>PattayaDom</b><div style="font-size:12px; color:var(--muted)">FamilyOS draft → Telegram</div></div>
+        <div><label>Модель</label><b>global</b><div style="font-size:12px; color:var(--muted)">opencode-go · дешёвая</div></div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px">
+        <span class="chip">MySQL 8 · in-memory → DB след. шаг</span><span class="chip">Google Auth · бесплатно</span><span class="chip">idempotency + audit</span>
+      </div>
+    </div>
+    <div class="card" style="background:linear-gradient(180deg, #142033, #111824)">
+      <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:800">Принцип</div>
+      <div style="margin-top:8px; display:grid; gap:8px; font-size:13px">
+        <div><span class="ok">● Ядро</span> — владеет состоянием, версиями, аудитом</div>
+        <div><span class="hl">● Каналы</span> — владеют доставкой через адаптеры</div>
+        <div><span class="warn">● Человек</span> — approve / edit / reject, отвечает за правду</div>
+        <div><span style="color:var(--dim)">● Модель</span> — предлагает, не публикует</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="how" class="wrap">
+  <div class="sec-head"><div><h2>Как работает целиком</h2><p>Пользователь входит через Google, создаёт проекты, гонит идеи по конвейеру. Всё привязано к <code>user_id</code>.</p></div><span class="badge">single source of truth — Content Loop DB</span></div>
+  <div class="arch">
+    <div class="arch-head"><span class="dot" style="background:var(--red)"></span><span class="dot" style="background:var(--amber)"></span><span class="dot" style="background:var(--green)"></span><span style="margin-left:6px; font-weight:700; letter-spacing:.06em; text-transform:uppercase">Content Loop — end-to-end</span><span style="margin-left:auto; color:var(--dim)">MySQL · outbox · adapters</span></div>
+    <svg viewBox="0 0 1120 420" xmlns="http://www.w3.org/2000/svg" style="background:#0E1623">
+      <!-- bg grid -->
+      <defs><pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" fill="none" stroke="#1E2F44" stroke-width="0.6"/></pattern></defs>
+      <rect x="0" y="0" width="1120" height="420" fill="url(#grid)"/>
+      <!-- top row: auth -->
+      <rect x="22" y="18" width="215" height="92" rx="14" fill="#142033" stroke="#2A4360"/><text x="34" y="36" fill="#6DCBF4" font-size="10" font-weight="800" letter-spacing="1">AUTH</text><text x="34" y="56" fill="#EAF0F8" font-size="14" font-weight="800">Google OAuth</text><text x="34" y="74" fill="#8FA0B8" font-size="11">user / team · JWT</text><text x="34" y="90" fill="#8FA0B8" font-size="11">бесплатно, без паролей</text>
+      <rect x="257" y="18" width="215" height="92" rx="14" fill="#142033" stroke="#2A4360"/><text x="269" y="36" fill="#6DCBF4" font-size="10" font-weight="800" letter-spacing="1">PROJECTS</text><text x="269" y="56" fill="#EAF0F8" font-size="13" font-weight="800">project × user_id</text><text x="269" y="74" fill="#8FA0B8" font-size="11">PattayaDom / Soul / AI Notes</text><text x="269" y="90" fill="#8FA0B8" font-size="11">политика, языки, каналы</text>
+      <rect x="492" y="18" width="340" height="92" rx="14" fill="#0F233A" stroke="#3D8DFF"/><text x="504" y="36" fill="#6DCBF4" font-size="10" font-weight="800" letter-spacing="1">MODEL LAYER · GLOBAL</text><text x="504" y="56" fill="#EAF0F8" font-size="13" font-weight="800">opencode-go · дешёвая модель</text><text x="504" y="74" fill="#8FA0B8" font-size="11">настраивается админом на весь проект</text><text x="504" y="90" fill="#8FA0B8" font-size="11">пользователь модель не выбирает</text>
+      <rect x="852" y="18" width="246" height="92" rx="14" fill="#142033" stroke="#2A4360"/><text x="864" y="36" fill="#6DCBF4" font-size="10" font-weight="800" letter-spacing="1">WEB</text><text x="864" y="56" fill="#EAF0F8" font-size="13" font-weight="800">Next.js · review queue</text><text x="864" y="74" fill="#8FA0B8" font-size="11">список · карточка · diff</text>
+      <!-- arrows top -->
+      <line x1="237" y1="64" x2="257" y2="64" stroke="#3D8DFF" stroke-width="2"/><polygon points="257,64 249,58 249,70" fill="#3D8DFF"/>
+      <line x1="472" y1="64" x2="492" y2="64" stroke="#3D8DFF" stroke-width="2" stroke-dasharray="6 6"/><polygon points="492,64 484,58 484,70" fill="#3D8DFF"/>
+      <line x1="832" y1="64" x2="852" y2="64" stroke="#3D8DFF" stroke-width="2"/><polygon points="852,64 844,58 844,70" fill="#3D8DFF"/>
+      <!-- main pipeline -->
+      <rect x="22" y="138" width="1076" height="98" rx="16" fill="#111E2E" stroke="#1E2F44"/>
+      <text x="34" y="156" fill="#8FA0B8" font-size="10" font-weight="800" letter-spacing="1">КОНВЕЙЕР · ЧЕЛОВЕК В ЦЕНТРЕ</text>
+      <!-- steps -->
+      <g font-size="11" font-weight="700">
+        <rect x="34" y="168" width="130" height="48" rx="12" fill="#1A2B42" stroke="#2A4360"/><text x="52" y="186" fill="#EAF0F8">💡 Идея</text><text x="52" y="200" fill="#8FA0B8" font-size="10">topic + brief</text>
+        <text x="170" y="194" fill="#5E7188" font-size="16">→</text>
+        <rect x="192" y="168" width="130" height="48" rx="12" fill="#1A2B42" stroke="#2A4360"/><text x="210" y="186" fill="#EAF0F8">✍️ Черновик</text><text x="210" y="200" fill="#8FA0B8" font-size="10">canonical md</text>
+        <text x="328" y="194" fill="#5E7188" font-size="16">→</text>
+        <rect x="350" y="168" width="150" height="48" rx="12" fill="#3D8DFF" stroke="#3D8DFF"/><text x="370" y="186" fill="#fff">👁 Review</text><text x="370" y="200" fill="#fff" font-size="10">approve / edit / reject</text>
+        <text x="506" y="194" fill="#5E7188" font-size="16">→</text>
+        <rect x="528" y="168" width="160" height="48" rx="12" fill="#1A2B42" stroke="#2A4360"/><text x="546" y="186" fill="#EAF0F8">📤 Публикация</text><text x="546" y="200" fill="#8FA0B8" font-size="10">outbox + idemp.</text>
+        <text x="694" y="194" fill="#5E7188" font-size="16">→</text>
+        <rect x="716" y="168" width="130" height="48" rx="12" fill="#1A2B42" stroke="#2A4360"/><text x="730" y="186" fill="#EAF0F8">📊 Сигналы</text><text x="730" y="200" fill="#8FA0B8" font-size="10">reactions · clicks</text>
+        <text x="852" y="194" fill="#5E7188" font-size="16">→</text>
+        <rect x="874" y="168" width="130" height="48" rx="12" fill="#102A1E" stroke="#1DB574"/><text x="888" y="186" fill="#B6F0D8">🔁 Рефлексия</text><text x="888" y="200" fill="#B6F0D8" font-size="10">next brief</text>
+      </g>
+      <!-- adapters bottom -->
+      <rect x="22" y="262" width="360" height="88" rx="14" fill="#0F1E2E" stroke="#3D8DFF"/><text x="34" y="282" fill="#6DCBF4" font-size="10" font-weight="800">ADAPTER · TELEGRAM</text><text x="34" y="302" fill="#EAF0F8" font-size="12" font-weight="700">publish · reactions webhook · UTM</text><text x="34" y="320" fill="#8FA0B8" font-size="11">save chat_id / message_id / permalink</text>
+      <rect x="402" y="262" width="360" height="88" rx="14" fill="#0F1E2E" stroke="#3D8DFF"/><text x="414" y="282" fill="#6DCBF4" font-size="10" font-weight="800">ADAPTER · FAMILYOS</text><text x="414" y="302" fill="#EAF0F8" font-size="12" font-weight="700">3 mappings · draft → publish</text><text x="414" y="320" fill="#8FA0B8" font-size="11">PattayaDom / Soul / AI Notes</text>
+      <rect x="782" y="262" width="316" height="88" rx="14" fill="#111824" stroke="#1E2F44" stroke-dasharray="6 6"/><text x="794" y="282" fill="#5E7188" font-size="10" font-weight="800">LATER</text><text x="794" y="302" fill="#8FA0B8" font-size="12" font-weight="700">Facebook Page · generic REST</text><text x="794" y="320" fill="#5E7188" font-size="11">после пилота</text>
+      <line x1="608" y1="236" x2="202" y2="262" stroke="#3D8DFF" stroke-width="1.5"/><line x1="608" y1="236" x2="582" y2="262" stroke="#3D8DFF" stroke-width="1.5"/>
+      <!-- bottom data -->
+      <rect x="22" y="370" width="1076" height="36" rx="12" fill="#0B1420" stroke="#1E2F44"/>
+      <text x="34" y="392" fill="#8FA0B8" font-size="11">Данные: <tspan fill="#EAF0F8" font-weight="700">каждая запись с owner_user_id</tspan> · immutable versions + audit · idempotency_key уникален · MySQL 8</text>
+      <text x="860" y="392" fill="#5E7188" font-size="11">api 8081 · web 3000 · mysql 3306</text>
+    </svg>
+    <div style="padding:12px 14px; border-top:1px solid var(--line); display:flex; gap:8px; flex-wrap:wrap; font-size:12px; color:var(--muted)">
+      <span>Потік: ідея → черновик (модель) → людина approve → outbox публикует в каналы → собирает сигналы → рефлексия влияет на следующий бриф.</span><span style="margin-left:auto; color:var(--dim)">Автопубликация выключена в MVP</span>
+    </div>
+  </div>
+</section>
+
+<section id="auth" class="wrap">
+  <div class="sec-head"><div><h2>Авторизация и владение данными</h2><p>Просто и бесплатно: Google OAuth. Каждый материал, версия и публикация привязаны к пользователю.</p></div><span class="badge">без паролей · JWT · scope по user_id</span></div>
+  <div class="two">
+    <div class="card">
+      <h3 style="margin:0 0 6px">🔐 Google Auth</h3>
+      <svg viewBox="0 0 520 150" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="10" width="140" height="56" rx="12" fill="#1A2B42" stroke="#2A4360"/><text x="22" y="32" fill="#EAF0F8" font-size="12" font-weight="800">User</text><text x="22" y="48" fill="#8FA0B8" font-size="11">браузер</text>
+        <text x="162" y="40" fill="#3D8DFF" font-size="14">→</text>
+        <rect x="182" y="10" width="150" height="56" rx="12" fill="#142033" stroke="#2A4360"/><text x="194" y="32" fill="#EAF0F8" font-size="12" font-weight="800">Google OAuth</text><text x="194" y="48" fill="#8FA0B8" font-size="11">consent · id_token</text>
+        <text x="344" y="40" fill="#3D8DFF" font-size="14">→</text>
+        <rect x="364" y="10" width="146" height="56" rx="12" fill="#0F233A" stroke="#3D8DFF"/><text x="376" y="32" fill="#EAF0F8" font-size="12" font-weight="800">Content Loop API</text><text x="376" y="48" fill="#8FA0B8" font-size="11">создаёт user · JWT</text>
+        <rect x="10" y="86" width="500" height="50" rx="12" fill="#0B1420" stroke="#1E2F44"/><text x="22" y="106" fill="#8FA0B8" font-size="11">Далее каждый запрос с Bearer · все WHERE с </text><text x="252" y="106" fill="#3D8DFF" font-size="11" font-weight="800">owner_user_id = me</text><text x="22" y="122" fill="#5E7188" font-size="11">админ видит всё, пользователь — только своё</text>
+      </svg>
+      <ul style="margin:8px 0 0; padding-left:16px; font-size:13px; color:#D6E0EC">
+        <li>Бесплатно, без хранения паролей, 2-клик вход</li>
+        <li>Модели/ключи AI — <b>глобально</b>, не на пользователя (как просишь)</li>
+        <li>Потом можно добавить team / приглашения — без смены схемы</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 6px">🗄 Данные за пользователем</h3>
+      <table class="table">
+        <tr><th>Таблица</th><th>Поле</th><th>Смысл</th></tr>
+        <tr><td>user</td><td>id, email, google_sub</td><td>владелец</td></tr>
+        <tr><td>project</td><td>owner_user_id</td><td>папка с политикой</td></tr>
+        <tr><td>content_item</td><td>owner_user_id, project_id</td><td>замысел + статус</td></tr>
+        <tr><td>content_version</td><td>immutable, owner_user_id</td><td>версия + claims + model</td></tr>
+        <tr><td>publication</td><td>owner_user_id, idempotency_key</td><td>куда опубликовано</td></tr>
+        <tr><td>audit_event</td><td>actor_user_id</td><td>кто что сделал</td></tr>
+      </table>
+      <p style="font-size:12px; color:var(--dim); margin:8px 0 0">RLS на уровне запросов: <code>WHERE owner_user_id = :me</code>. Миграция in-memory → MySQL — следующий шаг.</p>
+    </div>
+  </div>
+</section>
+
+<section id="ui" class="wrap">
+  <div class="sec-head"><div><h2>К чему стремимся — интерфейс</h2><p>Минимальный, но замкнутый цикл: очередь → карточка с diff и источниками → публикация → метрики.</p></div><span class="badge">Next.js · 4 экрана</span></div>
+  <div class="mocks">
+    <!-- mock 1 -->
+    <div class="mock">
+      <div class="mock-head"><span class="dot" style="background:var(--red)"></span><span class="dot" style="background:var(--amber)"></span><span class="dot" style="background:var(--green)"></span><span style="margin-left:6px">Очередь · review</span><span style="margin-left:auto" class="pill">PattayaDom</span></div>
+      <div class="mock-body">
+        <div style="display:flex; gap:6px; margin-bottom:10px"><span class="pill" style="background:var(--blue); color:#fff; border-color:var(--blue)">К проверке 3</span><span class="pill">Опубликовано 12</span><span class="pill">Черновики 2</span></div>
+        <div style="display:grid; gap:8px">
+          <div style="display:flex; gap:10px; align-items:center; padding:10px; border:1px solid var(--line); border-radius:12px; background:var(--panel)"><div style="width:8px; height:8px; border-radius:999px; background:var(--amber)"></div><div style="flex:1"><div style="font-weight:700; font-size:13px">Виза DTV — чек-лист документов 2025</div><div style="font-size:11px; color:var(--muted)">review_ready · claims 4 · источники 3 · 2 часа назад</div></div><span class="btn primary">Открыть</span></div>
+          <div style="display:flex; gap:10px; align-items:center; padding:10px; border:1px solid var(--line); border-radius:12px; background:var(--panel); opacity:.9"><div style="width:8px; height:8px; border-radius:999px; background:var(--blue)"></div><div style="flex:1"><div style="font-weight:700; font-size:13px">Топ районов Паттайи для зимовки</div><div style="font-size:11px; color:var(--muted)">drafting · модель пишет…</div></div><span class="pill">Подождать</span></div>
+          <div style="display:flex; gap:10px; align-items:center; padding:10px; border:1px solid var(--line); border-radius:12px; background:var(--panel); opacity:.7"><div style="width:8px; height:8px; border-radius:999px; background:var(--green)"></div><div style="flex:1"><div style="font-weight:700; font-size:13px">Налоги для фрилансеров в Таиланде</div><div style="font-size:11px; color:var(--muted)">published · TG 234 👍 · FamilyOS</div></div><span class="pill">Метрики</span></div>
+        </div>
+      </div>
+    </div>
+    <!-- mock 2 -->
+    <div class="mock">
+      <div class="mock-head"><span class="dot" style="background:var(--red)"></span><span class="dot" style="background:var(--amber)"></span><span class="dot" style="background:var(--green)"></span><span style="margin-left:6px">Карточка · approve</span><span style="margin-left:auto; display:flex; gap:6px"><span class="btn">Edit</span><span class="btn primary">Approve</span><span class="btn" style="color:var(--red)">Reject</span></span></div>
+      <div class="mock-body">
+        <div style="font-weight:800">Виза DTV — чек-лист документов 2025</div>
+        <div style="font-size:12px; color:var(--muted)">canonical markdown · версия 3 · model: opencode/qwen3-7b · 4 claims</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px">
+          <div style="background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px"><div style="font-size:11px; font-weight:800; letter-spacing:.06em; color:var(--muted)">ИСТОЧНИКИ</div><div style="font-size:12px; margin-top:6px; color:var(--cyan)">thaiconsulate.ru (проверен 29.08)<br>immigration.go.th<br>запрещённых claims — 0</div></div>
+          <div style="background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px"><div style="font-size:11px; font-weight:800; letter-spacing:.06em; color:var(--muted)">CLAIMS</div><div style="font-size:12px; margin-top:6px">• DTV 5 лет, 180 дней/въезд<br>• счёт 500k THB <span style="color:var(--green)">✓ source 1</span><br>• подача онлайн <span style="color:var(--amber)">⚠ проверить</span></div></div>
+        </div>
+        <div style="margin-top:10px; background:#0B1420; border:1px dashed var(--line); border-radius:12px; padding:10px; font-size:12px"><b>Diff vs v2:</b> <span style="background:rgba(29,181,116,.2); padding:1px 4px; border-radius:4px">+ чек-лист</span> <span style="background:rgba(255,90,90,.2); padding:1px 4px; border-radius:4px">− вода про «легко получить»</span></div>
+      </div>
+    </div>
+    <!-- mock 3 -->
+    <div class="mock">
+      <div class="mock-head"><span style="margin-left:4px; font-weight:700">Публикация · один клик</span><span style="margin-left:auto; font-size:11px; color:var(--muted)">idempotency + outbox</span></div>
+      <div class="mock-body">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
+          <div style="border:1px solid var(--line); border-radius:12px; padding:12px; background:var(--panel)"><div style="font-weight:800; font-size:13px">Telegram</div><div style="font-size:12px; color:var(--muted)">канал @pattayadom · текст + обложка</div><div style="margin-top:8px; display:flex; gap:6px"><span class="pill ok" style="border-color:rgba(29,181,116,.3)">готово</span><span class="chip">msg 18493</span></div><div style="margin-top:8px"><span class="btn primary" style="width:100%">Опубликовать</span></div></div>
+          <div style="border:1px solid var(--line); border-radius:12px; padding:12px; background:var(--panel)"><div style="font-weight:800; font-size:13px">FamilyOS · PattayaDom</div><div style="font-size:12px; color:var(--muted)">draft is_published=false → publish</div><div style="margin-top:8px; display:flex; gap:6px"><span class="pill">черновик</span><span class="chip">id 42</span></div><div style="margin-top:8px"><span class="btn primary" style="width:100%; background:var(--panel); color:var(--ink)">Опубликовать</span></div></div>
+        </div>
+        <div style="margin-top:10px; font-size:11px; color:var(--dim)">Повторный клик с тем же idempotency_key не создаёт дубль · ошибка канала не откатывает другой канал</div>
+      </div>
+    </div>
+    <!-- mock 4 -->
+    <div class="mock">
+      <div class="mock-head"><span style="margin-left:4px; font-weight:700">Рефлексия → следующий бриф</span><span style="margin-left:auto" class="pill">weekly</span></div>
+      <div class="mock-body">
+        <div style="background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px">
+          <div style="font-size:12px"><b>Наблюдение:</b> пошаговые чек-листы получили больше сохранений (+34% vs медиана канала)</div>
+          <div style="font-size:12px; margin-top:6px"><b>Confidence:</b> medium · <b>Next test:</b> чек-лист vs нарратив на одной теме</div>
+          <div style="font-size:11px; color:var(--red); margin-top:6px">do_not_conclude: «тема виз всегда сильнее недвижимости»</div>
+          <div style="margin-top:8px; font-size:11px; color:var(--dim)">Каждый совет ссылается на публикации и снапшоты 1h/24h/7d · следующий бриф показывает использованные наблюдения</div>
+        </div>
+        <div style="margin-top:10px; display:flex; gap:8px"><span class="pill">reaction_rate</span><span class="pill">click_rate</span><span class="pill">edit distance</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="plan" class="wrap">
+  <div class="sec-head"><div><h2>Конкретный план — следующие 2 недели</h2><p>Без общих слов: что именно делаем, сколько дней, что нужно от тебя.</p></div><span class="badge">идём по узкому срезу</span></div>
+  <div class="road">
+    <div class="phase active" onclick="this.classList.toggle('active')"><div class="phase-head"><div class="num">1</div><div style="flex:1"><b>MySQL вместо in-memory — 1–2 дня</b><div style="font-size:12px; color:var(--muted)">Подключить миграции, заменить заглушки на sqlx</div></div><div style="color:var(--dim)">▾</div></div><div class="phase-body">
+      <div class="two"><div><div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:800">Сделать</div><ul style="margin:6px 0 0; padding-left:16px; font-size:13px; color:#D6E0EC"><li>users + sessions (google_sub, email), middleware JWT</li><li>добавить <code>owner_user_id</code> во все таблицы, индексы</li><li>подключить <code>golang-migrate</code>, seed проекта PattayaDom</li><li>CRUD с <code>WHERE owner_user_id = ?</code></li></ul></div><div><div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:800">Нужно от тебя</div><ul style="margin:6px 0 0; padding-left:16px; font-size:13px; color:#D6E0EC"><li>Google OAuth client (создам инструкцию — 3 мин)</li><li>Домен для callback: <code>localhost:8081</code> пока, потом <code>content-loop.*</code></li></ul></div></div>
+      <div style="margin-top:10px; background:rgba(61,141,255,.08); border:1px solid rgba(61,141,255,.2); border-radius:10px; padding:10px; font-size:12px"><b>Готово когда:</b> рестарт не теряет данные, другой пользователь не видит чужие черновики.</div>
+    </div></div>
+
+    <div class="phase active" onclick="this.classList.toggle('active')"><div class="phase-head"><div class="num">2</div><div style="flex:1"><b>Генерация через opencode-go — 2–3 дня</b><div style="font-size:12px; color:var(--muted)">Глобальная дешёвая модель, 6 шагов, без выбора на пользователя</div></div><div style="color:var(--dim)">▾</div></div><div class="phase-body">
+      <div class="two"><div><div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:800">Поток</div><ul style="margin:6px 0 0; padding-left:16px; font-size:13px; color:#D6E0EC"><li><code>plan_topic</code> — дедуп по архиву</li><li><code>build_brief</code> — audience, claims, риски</li><li><code>draft_canonical</code> — markdown (opencode-go cheap)</li><li><code>render_variant</code> — Telegram / FamilyOS</li><li><code>verify</code> — ссылки, длина, запреты</li><li><code>prepare_review</code> — diff + sources для человека</li></ul></div><div><div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:800">Конфиг глобально</div><ul style="margin:6px 0 0; padding-left:16px; font-size:13px; color:#D6E0EC"><li><code>AI_PROVIDER=opencode-go</code>, <code>AI_MODEL=qwen3-7b</code></li><li>ключи в env / K8s Secret, не в БД</li><li>в логах — prompt/model/version, публикация только approved версии</li></ul></div></div>
+    </div></div>
+
+    <div class="phase" onclick="this.classList.toggle('active')"><div class="phase-head"><div class="num">3</div><div style="flex:1"><b>Адаптеры — 3–4 дня</b><div style="font-size:12px; color:var(--muted)">FamilyOS (3 маппинга) + Telegram, outbox, retry</div></div><div style="color:var(--dim)">▾</div></div><div class="phase-body">
+      <div class="two"><div><ul style="margin:0; padding-left:16px; font-size:13px; color:#D6E0EC"><li>FamilyOS: <code>POST is_published=false → PATCH publish</code>, reconcile</li><li>Telegram: текст/картинка, permalink, idempotency</li><li>webhook reactions, UTM links, rate-limit</li></ul></div><div><ul style="margin:0; padding-left:16px; font-size:13px; color:#D6E0EC"><li>Нужны: <code>TELEGRAM_BOT_TOKEN</code>, <code>FAMILYOS_API_KEY</code></li><li>Contract tests на моке FamilyOS</li></ul></div></div>
+    </div></div>
+
+    <div class="phase" onclick="this.classList.toggle('active')"><div class="phase-head"><div class="num">4</div><div style="flex:1"><b>Метрики + рефлексия — 1 неделя</b><div style="font-size:12px; color:var(--muted)">Снапшоты 1h/24h/7d, нормализация, weekly совет</div></div><div style="color:var(--dim)">▾</div></div><div class="phase-body"><ul style="margin:0; padding-left:16px; font-size:13px; color:#D6E0EC"><li>collector: реакции, клики по UTM, edit distance</li><li>weekly reflection: observation / confidence / next_test / do_not_conclude</li><li>следующий бриф обязан показать использованные наблюдения</li></ul></div></div>
+  </div>
+
+  <div class="two" style="margin-top:14px">
+    <div class="card" style="border-left:3px solid var(--green)"><h3 style="margin:0">Готово когда</h3><ul style="margin:8px 0 0; padding-left:16px; font-size:13px; color:#D6E0EC"><li>10 брифов → 10 review-готовых драфтов, claim без source подсвечен</li><li>повторный publish не плодит дубли, рестарт не теряет очередь</li><li>пользователь видит только своё, модель — одна на всех</li></ul></div>
+    <div class="card" style="border-left:3px solid var(--red)"><h3 style="margin:0">Не делаем в MVP</h3><ul style="margin:8px 0 0; padding-left:16px; font-size:13px; color:#D6E0EC"><li>пер-пользовательский выбор модели, fine-tuning</li><li>Facebook, SaaS/billing, marketplace</li><li>автопубликация — только approve</li></ul></div>
+  </div>
+
+  <div class="cta" style="margin-top:14px">
+    <div><h3 style="margin:0">Дальше — дело техники</h3><p style="margin:4px 0 0; color:var(--muted); font-size:13px">Могу начать Этап 1 (MySQL + Google Auth) прямо сейчас в фоне — от тебя только Google OAuth client, когда будет готов.</p></div>
+    <div style="display:flex; gap:8px"><a class="btn primary" href="mvp-plan.html" style="padding:10px 14px; display:inline-block; text-align:center">Роадмап MVP</a><a class="btn" href="https://github.com/ai-synthetix/content-loop" style="padding:10px 14px; display:inline-block; text-align:center">GitHub</a></div>
+  </div>
+</section>
+
+<footer class="wrap" style="padding:18px 0 28px; color:var(--dim); font-size:12px; border-top:1px solid var(--line); margin-top:12px">Content Loop · target system · 31.08.2026 · Go + MySQL 8 · opencode-go (global) · Google Auth</footer>
+</body>
+</html>
