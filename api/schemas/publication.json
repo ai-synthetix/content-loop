@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-synthetix.github.io/content-loop/schemas/publication.json",
+  "title": "Publication",
+  "type": "object",
+  "required": ["id", "content_item_id", "channel_variant_id", "adapter", "status", "idempotency_key"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "content_item_id": { "type": "string", "format": "uuid" },
+    "channel_variant_id": { "type": "string", "format": "uuid" },
+    "adapter": { "type": "string" },
+    "external_id": { "type": ["string", "null"] },
+    "url": { "type": ["string", "null"], "format": "uri" },
+    "status": { "type": "string", "enum": ["pending", "publishing", "published", "failed", "unpublished"] },
+    "idempotency_key": { "type": "string", "maxLength": 255 },
+    "error": { "type": ["string", "null"] },
+    "published_at": { "type": ["string", "null"], "format": "date-time" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

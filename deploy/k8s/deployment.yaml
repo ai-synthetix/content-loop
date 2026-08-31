@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: content-loop-api
+  labels:
+    app: content-loop-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: content-loop-api
+  template:
+    metadata:
+      labels:
+        app: content-loop-api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/ai-synthetix/content-loop:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: content-loop-secrets
+                  key: DATABASE_URL
+            - name: FAMILYOS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: content-loop-secrets
+                  key: FAMILYOS_API_KEY
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: content-loop-secrets
+                  key: TELEGRAM_BOT_TOKEN
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5

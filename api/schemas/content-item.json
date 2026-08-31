@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-synthetix.github.io/content-loop/schemas/content-item.json",
+  "title": "ContentItem",
+  "type": "object",
+  "required": ["id", "project_id", "status", "created_at", "updated_at"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "project_id": { "type": "string", "format": "uuid" },
+    "title": { "type": "string", "maxLength": 500 },
+    "slug": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "status": {
+      "type": "string",
+      "enum": ["idea","brief_ready","drafting","review_ready","approved","rejected","changes_requested","scheduled","publishing","published","partially_published","failed","measuring","reflected"]
+    },
+    "brief": { "type": ["object", "null"], "additionalProperties": true },
+    "locale": { "type": "string", "default": "ru" },
+    "scheduled_at": { "type": ["string", "null"], "format": "date-time" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

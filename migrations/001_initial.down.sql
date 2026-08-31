@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS `audit_event`;
+DROP TABLE IF EXISTS `reflection`;
+DROP TABLE IF EXISTS `metric_snapshot`;
+DROP TABLE IF EXISTS `publication`;
+DROP TABLE IF EXISTS `approval`;
+DROP TABLE IF EXISTS `channel_variant`;
+DROP TABLE IF EXISTS `content_version`;
+DROP TABLE IF EXISTS `source`;
+DROP TABLE IF EXISTS `content_item`;
+DROP TABLE IF EXISTS `project`;

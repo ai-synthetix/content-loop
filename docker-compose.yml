@@ -1,0 +1,52 @@
+services:
+  mysql:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-contentloop}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-content_loop}
+      MYSQL_USER: ${MYSQL_USER:-contentloop}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-contentloop}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-contentloop}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--default-authentication-plugin=mysql_native_password"]
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PORT: ${PORT:-8080}
+      DATABASE_URL: ${DATABASE_URL:-contentloop:contentloop@tcp(mysql:3306)/content_loop?parseTime=true&multiStatements=true&charset=utf8mb4}
+      FAMILYOS_BASE_URL: ${FAMILYOS_BASE_URL:-}
+      FAMILYOS_API_KEY: ${FAMILYOS_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHANNEL_ID: ${TELEGRAM_CHANNEL_ID:-}
+    ports:
+      - "${PORT:-8080}:8080"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  mysql_data:

@@ -1,0 +1,27 @@
+# Binaries
+/bin/
+/content-loop
+*.exe
+
+# Env
+.env
+.env.local
+
+# Go
+vendor/
+
+# Node
+web/node_modules/
+web/.next/
+web/dist/
+web/out/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Artifacts
+*.log
+coverage.out

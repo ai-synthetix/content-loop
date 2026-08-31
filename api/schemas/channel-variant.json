@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-synthetix.github.io/content-loop/schemas/channel-variant.json",
+  "title": "ChannelVariant",
+  "type": "object",
+  "required": ["id", "content_item_id", "content_version_id", "channel", "payload"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "content_item_id": { "type": "string", "format": "uuid" },
+    "content_version_id": { "type": "string", "format": "uuid" },
+    "channel": { "type": "string", "enum": ["telegram", "familyos.pattayadom_article", "familyos.soul_article", "familyos.soul_ai_note", "facebook"] },
+    "payload": { "type": "object", "description": "Channel-specific rendered payload (JSON)" },
+    "rendered_body": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

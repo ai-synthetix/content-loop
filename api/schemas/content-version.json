@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-synthetix.github.io/content-loop/schemas/content-version.json",
+  "title": "ContentVersion",
+  "type": "object",
+  "required": ["id", "content_item_id", "version_no", "body_markdown", "created_at"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "content_item_id": { "type": "string", "format": "uuid" },
+    "version_no": { "type": "integer", "minimum": 1 },
+    "title": { "type": "string" },
+    "excerpt": { "type": ["string", "null"] },
+    "body_markdown": { "type": "string" },
+    "claims": { "type": "array", "items": { "type": "object" } },
+    "sources": { "type": "array", "items": { "type": "string" } },
+    "prompt": { "type": ["string", "null"] },
+    "model": { "type": ["string", "null"] },
+    "model_version": { "type": ["string", "null"] },
+    "is_approved": { "type": "boolean", "default": false },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}
