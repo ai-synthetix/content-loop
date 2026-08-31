@@ -69,6 +69,195 @@ func NewGenerationService(st *store.Store, p *ai.Provider) *GenerationService {
 	return &GenerationService{Store: st, AI: p}
 }
 
+// --- async job helpers ---
+
+func (g *GenerationService) CreateJob(contentItemID, ownerUserID string) (map[string]any, error) {
+	if g.Store == nil || g.Store.DB == nil {
+		return nil, fmt.Errorf("store not available")
+	}
+	id := uuid.NewString()
+	row := map[string]any{
+		"id":              id,
+		"content_item_id": contentItemID,
+		"owner_user_id":   ownerUserID,
+		"status":          "pending",
+		"step":            "plan_topic",
+		"progress":        0,
+	}
+	if err := g.Store.Insert("generation_job", row); err != nil {
+		return nil, err
+	}
+	m, _ := g.Store.Get("generation_job", id, ownerUserID)
+	if m == nil {
+		m = row
+	}
+	return m, nil
+}
+
+func (g *GenerationService) updateJob(jobID, ownerUserID, status, step string, progress int, errMsg *string) {
+	if g.Store == nil || g.Store.DB == nil {
+		return
+	}
+	patch := map[string]any{"status": status, "step": step, "progress": progress}
+	if errMsg != nil {
+		patch["error"] = *errMsg
+	}
+	_, _ = g.Store.Update("generation_job", jobID, ownerUserID, patch)
+}
+
+func (g *GenerationService) GetJob(jobID, ownerUserID string) (map[string]any, error) {
+	if g.Store == nil || g.Store.DB == nil {
+		return nil, fmt.Errorf("store not available")
+	}
+	return g.Store.Get("generation_job", jobID, ownerUserID)
+}
+
+func (g *GenerationService) GetLatestJobForItem(contentItemID, ownerUserID string) (map[string]any, error) {
+	if g.Store == nil || g.Store.DB == nil {
+		return nil, fmt.Errorf("store not available")
+	}
+	var m map[string]any
+	// Use raw query to get latest by created_at desc
+	rows, err := g.Store.DB.Queryx(`SELECT * FROM generation_job WHERE content_item_id=? AND owner_user_id=? ORDER BY created_at DESC LIMIT 1`, contentItemID, ownerUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return nil, sql.ErrNoRows
+	}
+	m = map[string]any{}
+	if err := rows.MapScan(m); err != nil {
+		return nil, err
+	}
+	for k, v := range m {
+		if b, ok := v.([]byte); ok {
+			m[k] = string(b)
+		}
+	}
+	return m, nil
+}
+
+// GenerateAsync creates a job and runs pipeline in background.
+func (g *GenerationService) GenerateAsync(contentItemID, ownerUserID string) (map[string]any, error) {
+	job, err := g.CreateJob(contentItemID, ownerUserID)
+	if err != nil {
+		return nil, err
+	}
+	jobID, _ := job["id"].(string)
+	// start running immediately
+	go func() {
+		ctx := context.Background()
+		// mark running
+		g.updateJob(jobID, ownerUserID, "running", "plan_topic", 5, nil)
+		_, runErr := g.generateWithProgress(ctx, contentItemID, ownerUserID, jobID)
+		if runErr != nil {
+			msg := runErr.Error()
+			g.updateJob(jobID, ownerUserID, "failed", "verify", 100, &msg)
+			log.Printf("[generation] async job %s failed: %v", jobID, runErr)
+			return
+		}
+		// succeeded already updated inside generateWithProgress, ensure final
+	}()
+	return job, nil
+}
+
+func (g *GenerationService) generateWithProgress(ctx context.Context, contentItemID, ownerUserID, jobID string) (*GenerateResult, error) {
+	if g.Store == nil || g.Store.DB == nil {
+		return nil, fmt.Errorf("store not available")
+	}
+	update := func(step string, progress int) {
+		g.updateJob(jobID, ownerUserID, "running", step, progress, nil)
+	}
+	item, err := g.Store.Get("content_item", contentItemID, ownerUserID)
+	if err != nil {
+		return nil, err
+	}
+	title, _ := item["title"].(string)
+	if title == "" {
+		title = contentItemID
+	}
+	briefRaw, _ := item["brief"].(string)
+
+	// 1 plan_topic 10%
+	update("plan_topic", 10)
+	dedupWarning := g.planTopic(ownerUserID, title, contentItemID)
+
+	var projectJSON = "{}"
+	if pid, ok := item["project_id"].(string); ok && pid != "" {
+		if proj, err := g.Store.Get("project", pid, ownerUserID); err == nil {
+			if b, err := json.Marshal(proj); err == nil {
+				projectJSON = string(b)
+			}
+		}
+	}
+	// 2 build_brief 30%
+	update("build_brief", 30)
+	brief := g.buildBrief(ctx, title, projectJSON, briefRaw)
+	briefBytes, _ := json.Marshal(brief)
+	updatedItem, err := g.Store.Update("content_item", contentItemID, ownerUserID, map[string]any{"brief": string(briefBytes)})
+	if err == nil {
+		item = updatedItem
+	}
+	// 3 draft 60%
+	update("draft", 60)
+	canonical := g.draftCanonical(ctx, title, brief)
+	// 4 verify 80% (run verify before persist to report)
+	update("verify", 80)
+	vr := verify(canonical)
+	versionNo := g.nextVersionNo(contentItemID, ownerUserID)
+	claimsJSON, _ := json.Marshal(canonical.Claims)
+	sourcesJSON, _ := json.Marshal(canonical.Sources)
+	modelName := g.AI.Model
+	promptUsed := "draft_canonical"
+	versionID := uuid.NewString()
+	versionRow := map[string]any{
+		"id":              versionID,
+		"owner_user_id":   ownerUserID,
+		"content_item_id": contentItemID,
+		"version_no":      versionNo,
+		"title":           canonical.Title,
+		"excerpt":         canonical.Excerpt,
+		"body_markdown":   canonical.BodyMarkdown,
+		"claims":          string(claimsJSON),
+		"sources":         string(sourcesJSON),
+		"prompt":          promptUsed,
+		"model":           modelName,
+	}
+	if err := g.Store.Insert("content_version", versionRow); err != nil {
+		return nil, fmt.Errorf("insert version: %w", err)
+	}
+	newStatus := string(StatusDrafting)
+	if vr.Passed {
+		newStatus = string(StatusReviewReady)
+	}
+	_, _ = g.Store.Update("content_item", contentItemID, ownerUserID, map[string]any{"status": newStatus})
+
+	// 5 render 90%
+	update("render", 90)
+	variants := g.renderVariants(ctx, contentItemID, versionID, ownerUserID, canonical)
+
+	diff := g.prepareDiff(contentItemID, ownerUserID, versionID, canonical)
+	ver, _ := g.Store.Get("content_version", versionID, ownerUserID)
+	if ver == nil {
+		ver = versionRow
+	}
+	_ = item
+	res := &GenerateResult{
+		Brief:        brief,
+		Version:      ver,
+		Variants:     variants,
+		Verification: vr,
+		Diff:         diff,
+	}
+	if dedupWarning != nil {
+		res.DedupWarning = dedupWarning
+	}
+	// final succeeded
+	g.updateJob(jobID, ownerUserID, "succeeded", "verify", 100, nil)
+	return res, nil
+}
+
 // Generate runs the full pipeline for a content_item owned by ownerUserID.
 func (g *GenerationService) Generate(ctx context.Context, contentItemID, ownerUserID string) (*GenerateResult, error) {
 	if g.Store == nil || g.Store.DB == nil {

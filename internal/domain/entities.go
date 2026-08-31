@@ -1,7 +1,6 @@
 package domain
 
 import "time"
-
 // Status is the editorial workflow state of a content_item.
 // See architecture.md: idea → brief_ready → drafting → review_ready → approved/rejected/changes_requested → scheduled → publishing → published/partially_published/failed → measuring → reflected
 type Status string
@@ -164,6 +163,19 @@ type AuditEvent struct {
 	Action        string    `db:"action" json:"action"`
 	Payload       JSON      `db:"payload" json:"payload"` // JSON
 	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+}
+
+// GenerationJob tracks async generation progress.
+type GenerationJob struct {
+	ID            string    `db:"id" json:"id"`
+	ContentItemID string    `db:"content_item_id" json:"content_item_id"`
+	OwnerUserID   string    `db:"owner_user_id" json:"owner_user_id"`
+	Status        string    `db:"status" json:"status"`
+	Step          string    `db:"step" json:"step"`
+	Progress      int       `db:"progress" json:"progress"`
+	Error         *string   `db:"error" json:"error"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // JSON is a raw JSON column helper. Stored as []byte in MySQL JSON columns.

@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getToken, authHeaders, apiUrl, clearToken } from "../lib/auth";
 import { StatusBadge } from "../components/StatusBadge";
 import { PipelineStepper } from "../components/PipelineStepper";
 import { Skeleton, CardSkeleton } from "../components/Skeleton";
+import { GenerationProgress, GlobalGenerationStatus, type Job } from "../components/GenerationStatus";
 
 type Item = { id: string; title?: string; status?: string; slug?: string };
 type Project = { id: string; name?: string; slug?: string };
@@ -25,6 +26,7 @@ export default function Page() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<Record<string, Job>>({});
 
   // modal state
   const [showModal, setShowModal] = useState(false);
@@ -54,19 +56,82 @@ export default function Page() {
     if (r.status === 401) { clearToken(); router.replace("/login"); throw new Error("unauthorized"); }
     const d = await r.json();
     setItems(d.items || []);
+    return (d.items || []) as Item[];
   }, [router]);
+
+  const fetchJobsForItems = useCallback(async (list: Item[]) => {
+    const entries = await Promise.all(
+      list.map(async (it) => {
+        try {
+          const r = await fetch(apiUrl(`/api/v1/content-items/${it.id}/generation-status`), { headers: { ...authHeaders() } });
+          if (!r.ok) return null;
+          const j = (await r.json()) as Job;
+          if (typeof j.progress === "string") j.progress = parseInt(j.progress as any, 10) || 0;
+          return [it.id, j] as const;
+        } catch { return null; }
+      })
+    );
+    const map: Record<string, Job> = {};
+    for (const e of entries) if (e) map[e[0]] = e[1];
+    setJobs(map);
+    return map;
+  }, []);
 
   useEffect(() => {
     const token = getToken();
     if (!token) { router.replace("/login"); return; }
-    Promise.all([fetchItems(), fetchProjects()])
+    Promise.all([fetchItems().then((list) => fetchJobsForItems(list)), fetchProjects()])
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
-  }, [router, fetchItems, fetchProjects]);
+  }, [router, fetchItems, fetchProjects, fetchJobsForItems]);
+
+  // auto-poll every 2s while pending/running
+  useEffect(() => {
+    const activeIds = Object.entries(jobs).filter(([, j]) => j.status === "pending" || j.status === "running").map(([id]) => id);
+    if (activeIds.length === 0) return;
+    const id = window.setInterval(async () => {
+      for (const cid of activeIds) {
+        try {
+          const r = await fetch(apiUrl(`/api/v1/content-items/${cid}/generation-status`), { headers: { ...authHeaders() } });
+          if (!r.ok) continue;
+          const j = (await r.json()) as Job;
+          if (typeof j.progress === "string") j.progress = parseInt(j.progress as any, 10) || 0;
+          setJobs((prev) => ({ ...prev, [cid]: j }));
+          if (j.status === "succeeded" || j.status === "failed") {
+            // refresh items to update pipeline status
+            fetchItems().catch(() => {});
+          }
+        } catch {}
+      }
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [jobs, fetchItems]);
 
   function onTitleChange(v: string) {
     setTitle(v);
     if (!slugDirty) setSlug(slugify(v));
+  }
+
+  async function handleRetryGenerate(contentItemId: string, e?: React.MouseEvent) {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    try {
+      await fetch(apiUrl(`/api/v1/content-items/${contentItemId}/generate`), {
+        method: "POST", headers: { ...authHeaders() },
+      });
+      // optimistic pending
+      setJobs((prev) => ({ ...prev, [contentItemId]: { id: "temp", content_item_id: contentItemId, owner_user_id: "", status: "pending", step: "plan_topic", progress: 5 } }));
+      // fetch fresh status shortly
+      setTimeout(async () => {
+        try {
+          const r = await fetch(apiUrl(`/api/v1/content-items/${contentItemId}/generation-status`), { headers: { ...authHeaders() } });
+          if (r.ok) {
+            const j = (await r.json()) as Job;
+            if (typeof j.progress === "string") j.progress = parseInt(j.progress as any, 10) || 0;
+            setJobs((prev) => ({ ...prev, [contentItemId]: j }));
+          }
+        } catch {}
+      }, 500);
+    } catch {}
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -92,13 +157,11 @@ export default function Page() {
       if (!res.ok) throw new Error(data.error || `create failed ${res.status}`);
       const id = data.id as string;
       if (id) {
-        // auto build brief / generate (best-effort, don't block on failure)
         try {
           const r2 = await fetch(apiUrl(`/api/v1/content-items/${id}/brief`), {
             method: "POST", headers: { ...authHeaders() },
           });
           if (!r2.ok) {
-            // fallback to generate full pipeline
             await fetch(apiUrl(`/api/v1/content-items/${id}/generate`), {
               method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
               body: JSON.stringify({}),
@@ -106,14 +169,14 @@ export default function Page() {
           }
         } catch {}
         try {
-          // also kick generate in background (if brief endpoint already did scaffold, generate will draft)
           await fetch(apiUrl(`/api/v1/content-items/${id}/generate`), {
             method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
             body: JSON.stringify({}),
           }).catch(() => {});
         } catch {}
       }
-      await fetchItems();
+      const list = await fetchItems();
+      await fetchJobsForItems(list);
       setShowModal(false);
       setTitle(""); setSlug(""); setSlugDirty(false); setBrief("");
     } catch (e: any) {
@@ -123,6 +186,8 @@ export default function Page() {
 
   if (loading) return <div style={{ display: "grid", gap: 10 }}><Skeleton style={{ height: 28, width: 180 }} /><CardSkeleton /><CardSkeleton /><CardSkeleton /></div>;
   if (err) return <div style={{ background: "rgba(255,60,60,.12)", border: "1px solid rgba(255,60,60,.3)", padding: 16, borderRadius: 12, color: "#ff8a8a" }}><strong>Failed to load</strong><div style={{ fontSize: 12, marginTop: 6 }}>{err}</div><div style={{ marginTop: 12, display: "flex", gap: 8 }}><button onClick={() => location.reload()} style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#cfe0ff", borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Retry</button><button onClick={() => { clearToken(); router.replace("/login"); }} style={{ background: "#33151a", border: "1px solid #5a2a33", color: "#ff8a8a", borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Re-login</button></div></div>;
+
+  const activeJobIds = Object.entries(jobs).filter(([, j]) => j.status === "pending" || j.status === "running").map(([id]) => id);
 
   return (
     <div>
@@ -138,6 +203,8 @@ export default function Page() {
           + New item
         </button>
       </div>
+
+      <GlobalGenerationStatus visibleItems={activeJobIds} />
 
       {projects.length > 0 && (
         <div style={{ marginTop: 16, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 10, padding: 12 }}>
@@ -161,20 +228,39 @@ export default function Page() {
         </div>
       ) : (
         <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
-          {items.map((it) => (
-            <Link key={it.id} href={`/items/${it.id}`} style={{ textDecoration: "none", background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 14, display: "block" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ color: "#cfe0ff", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.title || it.slug || it.id}</div>
-                  <div style={{ fontSize: 11, color: "#5a6b86", marginTop: 2 }}>{it.id}</div>
+          {items.map((it) => {
+            const job = jobs[it.id] || null;
+            const showJob = job && (job.status === "pending" || job.status === "running" || job.status === "failed");
+            const isActive = job?.status === "pending" || job?.status === "running";
+            return (
+              <Link key={it.id} href={`/items/${it.id}`} style={{ textDecoration: "none", background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 14, display: "block" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ color: "#cfe0ff", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.title || it.slug || it.id}</div>
+                    <div style={{ fontSize: 11, color: "#5a6b86", marginTop: 2 }}>{it.id}</div>
+                  </div>
+                  <StatusBadge status={it.status || ""} size={11} />
                 </div>
-                <StatusBadge status={it.status || ""} size={11} />
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <PipelineStepper status={it.status || "idea"} compact />
-              </div>
-            </Link>
-          ))}
+                <div style={{ marginTop: 10 }}>
+                  <PipelineStepper status={it.status || "idea"} compact />
+                </div>
+                {showJob && (
+                  <div style={{ marginTop: 10, background: "#0b111a", border: "1px solid #1e2f44", borderRadius: 10, padding: 10 }} onClick={(e) => e.preventDefault()}>
+                    <GenerationProgress job={job} compact />
+                    {job?.status === "failed" && (
+                      <button
+                        onClick={(e) => handleRetryGenerate(it.id, e)}
+                        style={{ marginTop: 8, background: "#b4232a", color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontWeight: 700, cursor: "pointer", fontSize: 11 }}
+                      >
+                        Retry generate
+                      </button>
+                    )}
+                    {isActive && <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>auto-refresh every 2s — {job.step} {job.progress}%</div>}
+                  </div>
+                )}
+              </Link>
+            );
+          })}
         </div>
       )}
 

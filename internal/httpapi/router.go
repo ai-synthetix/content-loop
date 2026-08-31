@@ -183,8 +183,12 @@ func NewRouterWithConfig(cfg Config) http.Handler {
 				r.Post("/{id}/approvals", s.createApproval)
 				r.Post("/{id}/brief", s.handleBuildBrief)
 				r.Post("/{id}/generate", s.handleGenerate)
+				r.Get("/{id}/generation-status", s.handleGenerationStatus)
 				r.Get("/{id}/review", s.handleReview)
 			})
+				r.Route("/generation-jobs", func(r chi.Router) {
+					r.Get("/{id}", s.handleGenerationJob)
+				})
 			r.Route("/publications", func(r chi.Router) {
 				r.Get("/", s.listPublications)
 				r.Post("/", s.createPublication)
