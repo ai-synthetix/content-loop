@@ -151,11 +151,8 @@ export function useGenerationPoll(contentItemId: string | null, enabled: boolean
     const id = window.setInterval(async () => {
       const j = await fetchStatus();
       if (j && (j.status === "succeeded" || j.status === "failed")) {
-        // stop polling after success/failed? keep but slow down
-        // we keep polling every 2s while pending/running, stop when terminal after one more fetch
-        if (j.status === "succeeded" || j.status === "failed") {
-          // let caller decide; we keep polling but no need to aggressive
-        }
+        window.clearInterval(id);
+        timer.current = null;
       }
     }, 2000);
     timer.current = id as unknown as number;

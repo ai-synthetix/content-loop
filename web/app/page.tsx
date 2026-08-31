@@ -1,12 +1,12 @@
 "use client";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getToken, authHeaders, apiUrl, clearToken } from "../lib/auth";
 import { StatusBadge } from "../components/StatusBadge";
 import { PipelineStepper } from "../components/PipelineStepper";
 import { Skeleton, CardSkeleton } from "../components/Skeleton";
-import { GenerationProgress, GlobalGenerationStatus, type Job } from "../components/GenerationStatus";
+import { GenerationProgress, type Job } from "../components/GenerationStatus";
 
 type Item = { id: string; title?: string; status?: string; slug?: string };
 type Project = { id: string; name?: string; slug?: string };
@@ -26,6 +26,7 @@ export default function Page() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  // jobs kept only for optimistic Retry display — no auto-polling on Queue
   const [jobs, setJobs] = useState<Record<string, Job>>({});
 
   // modal state
@@ -59,53 +60,14 @@ export default function Page() {
     return (d.items || []) as Item[];
   }, [router]);
 
-  const fetchJobsForItems = useCallback(async (list: Item[]) => {
-    const entries = await Promise.all(
-      list.map(async (it) => {
-        try {
-          const r = await fetch(apiUrl(`/api/v1/content-items/${it.id}/generation-status`), { headers: { ...authHeaders() } });
-          if (!r.ok) return null;
-          const j = (await r.json()) as Job;
-          if (typeof j.progress === "string") j.progress = parseInt(j.progress as any, 10) || 0;
-          return [it.id, j] as const;
-        } catch { return null; }
-      })
-    );
-    const map: Record<string, Job> = {};
-    for (const e of entries) if (e) map[e[0]] = e[1];
-    setJobs(map);
-    return map;
-  }, []);
-
+  // Single fetch on mount only — no per-item generation-status polling on Queue
   useEffect(() => {
     const token = getToken();
     if (!token) { router.replace("/login"); return; }
-    Promise.all([fetchItems().then((list) => fetchJobsForItems(list)), fetchProjects()])
+    Promise.all([fetchItems(), fetchProjects()])
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
-  }, [router, fetchItems, fetchProjects, fetchJobsForItems]);
-
-  // auto-poll every 2s while pending/running
-  useEffect(() => {
-    const activeIds = Object.entries(jobs).filter(([, j]) => j.status === "pending" || j.status === "running").map(([id]) => id);
-    if (activeIds.length === 0) return;
-    const id = window.setInterval(async () => {
-      for (const cid of activeIds) {
-        try {
-          const r = await fetch(apiUrl(`/api/v1/content-items/${cid}/generation-status`), { headers: { ...authHeaders() } });
-          if (!r.ok) continue;
-          const j = (await r.json()) as Job;
-          if (typeof j.progress === "string") j.progress = parseInt(j.progress as any, 10) || 0;
-          setJobs((prev) => ({ ...prev, [cid]: j }));
-          if (j.status === "succeeded" || j.status === "failed") {
-            // refresh items to update pipeline status
-            fetchItems().catch(() => {});
-          }
-        } catch {}
-      }
-    }, 2000);
-    return () => window.clearInterval(id);
-  }, [jobs, fetchItems]);
+  }, [router, fetchItems, fetchProjects]);
 
   function onTitleChange(v: string) {
     setTitle(v);
@@ -118,9 +80,8 @@ export default function Page() {
       await fetch(apiUrl(`/api/v1/content-items/${contentItemId}/generate`), {
         method: "POST", headers: { ...authHeaders() },
       });
-      // optimistic pending
+      // optimistic pending — will be verified on detail page; Queue does not poll
       setJobs((prev) => ({ ...prev, [contentItemId]: { id: "temp", content_item_id: contentItemId, owner_user_id: "", status: "pending", step: "plan_topic", progress: 5 } }));
-      // fetch fresh status shortly
       setTimeout(async () => {
         try {
           const r = await fetch(apiUrl(`/api/v1/content-items/${contentItemId}/generation-status`), { headers: { ...authHeaders() } });
@@ -175,8 +136,7 @@ export default function Page() {
           }).catch(() => {});
         } catch {}
       }
-      const list = await fetchItems();
-      await fetchJobsForItems(list);
+      await fetchItems();
       setShowModal(false);
       setTitle(""); setSlug(""); setSlugDirty(false); setBrief("");
     } catch (e: any) {
@@ -186,8 +146,6 @@ export default function Page() {
 
   if (loading) return <div style={{ display: "grid", gap: 10 }}><Skeleton style={{ height: 28, width: 180 }} /><CardSkeleton /><CardSkeleton /><CardSkeleton /></div>;
   if (err) return <div style={{ background: "rgba(255,60,60,.12)", border: "1px solid rgba(255,60,60,.3)", padding: 16, borderRadius: 12, color: "#ff8a8a" }}><strong>Failed to load</strong><div style={{ fontSize: 12, marginTop: 6 }}>{err}</div><div style={{ marginTop: 12, display: "flex", gap: 8 }}><button onClick={() => location.reload()} style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#cfe0ff", borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Retry</button><button onClick={() => { clearToken(); router.replace("/login"); }} style={{ background: "#33151a", border: "1px solid #5a2a33", color: "#ff8a8a", borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Re-login</button></div></div>;
-
-  const activeJobIds = Object.entries(jobs).filter(([, j]) => j.status === "pending" || j.status === "running").map(([id]) => id);
 
   return (
     <div>
@@ -203,8 +161,6 @@ export default function Page() {
           + New item
         </button>
       </div>
-
-      <GlobalGenerationStatus visibleItems={activeJobIds} />
 
       {projects.length > 0 && (
         <div style={{ marginTop: 16, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 10, padding: 12 }}>
@@ -230,6 +186,7 @@ export default function Page() {
         <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
           {items.map((it) => {
             const job = jobs[it.id] || null;
+            // static display only for jobs triggered via Retry on this page — no polling
             const showJob = job && (job.status === "pending" || job.status === "running" || job.status === "failed");
             const isActive = job?.status === "pending" || job?.status === "running";
             return (
@@ -255,7 +212,7 @@ export default function Page() {
                         Retry generate
                       </button>
                     )}
-                    {isActive && <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>auto-refresh every 2s — {job.step} {job.progress}%</div>}
+                    {isActive && <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>generating — open item to see live progress — {job.step} {job.progress}%</div>}
                   </div>
                 )}
               </Link>
