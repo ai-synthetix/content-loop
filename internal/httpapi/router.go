@@ -126,6 +126,14 @@ func NewRouterWithConfig(cfg Config) http.Handler {
 				r.Post("/", s.createPublication)
 				r.Get("/{id}", s.getPublication)
 			})
+			r.Route("/channels", func(r chi.Router) {
+				r.Get("/", s.listChannels)
+				r.Post("/", s.createChannel)
+				r.Get("/{id}", s.getChannel)
+				r.Patch("/{id}", s.updateChannel)
+				r.Delete("/{id}", s.deleteChannel)
+				r.Post("/{id}/test", s.testChannel)
+			})
 		})
 	})
 	return r
