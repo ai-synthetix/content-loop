@@ -6,13 +6,13 @@ import { StatusBadge } from "../../components/StatusBadge";
 type Tab = "pipeline" | "projects" | "channels";
 
 const STAGES = [
-  { key: "idea", label: "Idea", icon: "💡", hint: "Title + raw brief", caption: "human seeds", bg: "#101f36", border: "#2a3a52", statuses: ["idea"] },
+  { key: "idea", label: "Idea", icon: "💡", hint: "Title + raw brief", caption: "human seeds", bg: "#143054", border: "#2a5a8a", statuses: ["idea"] },
   { key: "brief", label: "Brief", icon: "📋", hint: "audience, intent, claims", caption: "AI scaffolds", bg: "#101f36", border: "#2a3a52", statuses: ["brief_ready"] },
   { key: "draft", label: "Draft", icon: "✍️", hint: "canonical markdown", caption: "AI drafts (human editable)", bg: "#1e1a08", border: "#4a3d16", statuses: ["drafting"] },
   { key: "review", label: "Review", icon: "👁️", hint: "human gate", caption: "human approves", bg: "#231a0a", border: "#5a3420", statuses: ["review_ready", "changes_requested", "rejected"] },
-  { key: "approved", label: "Approved", icon: "✅", hint: "ready to publish", caption: "human decision", bg: "#0b2a16", border: "#1f4a2b", statuses: ["approved", "scheduled"] },
-  { key: "publish", label: "Publish", icon: "📡", hint: "per-channel delivery", caption: "adapters per channel", bg: "#0b2a16", border: "#1f4a2b", statuses: ["publishing", "published", "partially_published", "failed"] },
-  { key: "measuring", label: "Measuring", icon: "📊", hint: "views, reactions", caption: "auto + manual", bg: "#162236", border: "#334155", statuses: ["measuring"] },
+  { key: "approved", label: "Approved", icon: "✅", hint: "ready to publish", caption: "human decision", bg: "#123825", border: "#2a6b3a", statuses: ["approved", "scheduled"] },
+  { key: "publish", label: "Publish", icon: "📡", hint: "per-channel delivery", caption: "adapters per channel", bg: "#0f2a4d", border: "#2a4a7a", statuses: ["publishing", "published", "partially_published", "failed"] },
+  { key: "measuring", label: "Measuring", icon: "📊", hint: "views, reactions", caption: "auto + manual", bg: "#2e1e08", border: "#6b3d16", statuses: ["measuring"] },
   { key: "reflected", label: "Reflected", icon: "💭", hint: "learnings → next test", caption: "LLM hypotheses / human", bg: "#1a1633", border: "#3a2a5a", statuses: ["reflected"] },
 ] as const;
 
@@ -68,30 +68,60 @@ export default function GuidePage() {
           <h2 style={{ fontSize: 16, margin: "10px 0 10px" }}>Pipeline — idea → reflected</h2>
 
           <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 14, padding: "14px 10px 18px", overflowX: "auto" }}>
-            <div style={{ minWidth: 980, position: "relative", paddingBottom: 26 }}>
+            <svg viewBox="0 0 980 28" width={980} height={28} style={{ display: "block", marginBottom: 8 }}>
+              <defs>
+                <marker id="arrow-guide" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={6} markerHeight={6} orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b5cf6" />
+                </marker>
+              </defs>
+              <path d="M 920 4 L 920 22 L 60 22 L 60 4" fill="none" stroke="#8b5cf6" strokeWidth={1} strokeDasharray="4 4" markerEnd="url(#arrow-guide)" />
+              <text x={490} y={13} textAnchor="middle" fontSize={10} fill="#c4b5fd" fontWeight={600} style={{ paintOrder: "stroke", stroke: "#0f1620", strokeWidth: 3 }}>
+                Замыкает луп: reflected → новая idea (next_test)
+              </text>
+            </svg>
+            <div style={{ minWidth: 980, position: "relative", paddingBottom: 0 }}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 0 }}>
                 {STAGES.map((st, i) => (
                   <div key={st.key} style={{ display: "flex", alignItems: "flex-start", flex: 1, gap: 0 }}>
                     <div style={{ flex: 1, textAlign: "center", minWidth: 0 }}>
-                      <div
-                        style={{
-                          background: st.bg,
-                          border: `1px solid ${st.border}`,
-                          borderRadius: 8,
-                          padding: "8px 6px",
-                          minHeight: 44,
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 6,
-                          justifyContent: "center",
-                          alignItems: "center",
-                          marginBottom: 8,
-                        }}
-                      >
-                        {st.statuses.map((s) => (
-                          <StatusBadge key={s} status={s} size={10} />
-                        ))}
-                      </div>
+                      {st.statuses.length > 1 ? (
+                        <div
+                          style={{
+                            background: "rgba(255,255,255,0.04)",
+                            border: `1px solid ${st.border}55`,
+                            borderRadius: 8,
+                            padding: "8px 6px",
+                            minHeight: 44,
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: 6,
+                            justifyContent: "center",
+                            alignItems: "center",
+                            marginBottom: 8,
+                          }}
+                        >
+                          {st.statuses.map((s) => (
+                            <StatusBadge key={s} status={s} size={10} />
+                          ))}
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            padding: "6px 0",
+                            minHeight: 44,
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: 6,
+                            justifyContent: "center",
+                            alignItems: "center",
+                            marginBottom: 8,
+                          }}
+                        >
+                          {st.statuses.map((s) => (
+                            <StatusBadge key={s} status={s} size={10} />
+                          ))}
+                        </div>
+                      )}
                       <div
                         style={{
                           width: 36,
@@ -128,24 +158,6 @@ export default function GuidePage() {
                 ))}
               </div>
 
-              <svg viewBox="0 0 980 28" width={980} height={28} style={{ display: "block", marginTop: 6 }}>
-                <defs>
-                  <marker id="arrow-guide" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={6} markerHeight={6} orient="auto-start-reverse">
-                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a5a78" />
-                  </marker>
-                </defs>
-                <path
-                  d="M 920 4 L 920 22 L 60 22 L 60 4"
-                  fill="none"
-                  stroke="#4a5a78"
-                  strokeWidth={1}
-                  strokeDasharray="4 4"
-                  markerEnd="url(#arrow-guide)"
-                />
-                <text x={490} y={14} textAnchor="middle" fontSize={9} fill="#5a6b86" fontWeight={400}>
-                  reflected → idea (next hypothesis)
-                </text>
-              </svg>
             </div>
           </div>
 
