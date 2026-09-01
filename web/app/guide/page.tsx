@@ -214,7 +214,6 @@ export default function GuidePage() {
               Transitions are validated server-side via <code style={{ background: "#0b1420", padding: "1px 6px", borderRadius: 6 }}>domain.ValidTransitions</code> — e.g. <code>approved → publishing</code> is allowed, <code>idea → published</code> is not.
             </div>
           </div>
-          </details>
         </>
       )}
 
