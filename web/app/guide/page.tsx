@@ -156,21 +156,6 @@ export default function GuidePage() {
                         }}
                       />
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, height: 110, justifyContent: "center" }}>
-                        <div
-                          style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: 12,
-                            background: st.bg,
-                            border: `1px solid ${st.border}`,
-                            display: "grid",
-                            placeItems: "center",
-                            fontSize: 16,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {st.icon}
-                        </div>
                         <div style={{ fontSize: 12, fontWeight: 700, color: "#cfe0ff", textAlign: "center" }}>{st.label}</div>
                         <div style={{ fontSize: 10, color: "#8FA0B8", lineHeight: 1.2, minHeight: 24, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.hint}</div>
                         <div style={{ fontSize: 10, color: "#5a6b86", fontWeight: 400, minHeight: 14, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.caption}</div>
@@ -186,32 +171,39 @@ export default function GuidePage() {
             </div>
           </div>
 
-          <h2 style={{ fontSize: 16, margin: "24px 0 10px" }}>Statuses</h2>
-          <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, overflow: "hidden", overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 520 }}>
-              <thead>
-                <tr style={{ textAlign: "left", borderBottom: "1px solid #1e2f44", background: "#0b1420" }}>
-                  <th style={{ padding: "8px 10px" }}>Status</th>
-                  <th style={{ padding: "8px 10px" }}>Description</th>
-                  <th style={{ padding: "8px 10px" }}>Owner</th>
-                </tr>
-              </thead>
-              <tbody>
-                {STATUSES.map((r) => (
-                  <tr key={r.status} style={{ borderBottom: "1px solid #1e2f44" }}>
-                    <td style={{ padding: "8px 10px" }}>
-                      <StatusBadge status={r.status} size={11} />
-                    </td>
-                    <td style={{ padding: "8px 10px", color: "#8FA0B8" }}>{r.desc}</td>
-                    <td style={{ padding: "8px 10px", color: "#5a6b86", fontSize: 11 }}>{r.owner}</td>
+          <details style={{ marginTop: 24 }}>
+            <summary style={{ fontSize: 13, fontWeight: 700, color: "#8FA0B8", cursor: "pointer", userSelect: "none" }}>Statuses — 13 статусов (скрыто, нажми чтобы раскрыть)</summary>
+            <div style={{ marginTop: 10, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, overflow: "hidden", overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 520 }}>
+                <thead>
+                  <tr style={{ textAlign: "left", borderBottom: "1px solid #1e2f44", background: "#0b1420" }}>
+                    <th style={{ padding: "8px 10px" }}></th>
+                    <th style={{ padding: "8px 10px" }}>Status</th>
+                    <th style={{ padding: "8px 10px" }}>Description</th>
+                    <th style={{ padding: "8px 10px" }}>Owner</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {STATUSES.map((r) => {
+                    const m: Record<string, string> = { idea: "💡", brief_ready: "📋", drafting: "✍️", review_ready: "👁️", changes_requested: "👁️", rejected: "👁️", approved: "✅", scheduled: "✅", publishing: "📡", published: "📡", partially_published: "📡", failed: "📡", measuring: "📊", reflected: "💭" };
+                    return (
+                      <tr key={r.status} style={{ borderBottom: "1px solid #1e2f44" }}>
+                        <td style={{ padding: "8px 10px", textAlign: "center", fontSize: 14 }}>{m[r.status] || "•"}</td>
+                        <td style={{ padding: "8px 10px" }}>
+                          <StatusBadge status={r.status} size={11} />
+                        </td>
+                        <td style={{ padding: "8px 10px", color: "#8FA0B8" }}>{r.desc}</td>
+                        <td style={{ padding: "8px 10px", color: "#5a6b86", fontSize: 11 }}>{r.owner}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             <div style={{ padding: "8px 10px", fontSize: 11, color: "#5a6b86" }}>
               Transitions are validated server-side via <code style={{ background: "#0b1420", padding: "1px 6px", borderRadius: 6 }}>domain.ValidTransitions</code> — e.g. <code>approved → publishing</code> is allowed, <code>idea → published</code> is not.
             </div>
           </div>
+          </details>
         </>
       )}
 
