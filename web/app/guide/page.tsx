@@ -43,11 +43,26 @@ export default function GuidePage() {
         <p style={{ fontSize: 13, color: "#8FA0B8", lineHeight: 1.6, margin: 0 }}>
           Раньше человек делал всё сам: придумывал тему, писал черновик, вычитывал, публиковал, смотрел реакцию. Сейчас AI генерит в 100 раз быстрее, но люди будут всё хуже <em style={{ color: "#cfe0ff" }}>создавать</em> — и всё лучше <em style={{ color: "#cfe0ff" }}>валидировать</em>.
         </p>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "center", margin: "12px 0", background: "#0b1420", border: "1px solid #1e2f44", borderRadius: 10, padding: "10px 12px" }}>
+          <div style={{ textAlign: "center", flex: 1 }}>
+            <div style={{ fontSize: 22 }}>👤</div>
+            <div style={{ fontSize: 11, color: "#cfe0ff", fontWeight: 700 }}>человек</div>
+            <div style={{ fontSize: 10, color: "#6fdc8c" }}>валидирует да / нет</div>
+            <div style={{ fontSize: 9, color: "#5a6b86", marginTop: 2 }}>свайп Approve / Reject</div>
+          </div>
+          <div style={{ fontSize: 16, color: "#3D8DFF", fontWeight: 700 }}>⇄</div>
+          <div style={{ textAlign: "center", flex: 1 }}>
+            <div style={{ fontSize: 22 }}>🤖</div>
+            <div style={{ fontSize: 11, color: "#cfe0ff", fontWeight: 700 }}>AI</div>
+            <div style={{ fontSize: 10, color: "#8FA0B8" }}>генерит бриф / драфт / варианты</div>
+            <div style={{ fontSize: 9, color: "#5a6b86", marginTop: 2 }}>mimo-v2.5 + адаптеры</div>
+          </div>
+        </div>
         <p style={{ fontSize: 13, color: "#8FA0B8", lineHeight: 1.6, margin: "8px 0 0" }}>
           Как в Тиндере ты не пишешь анкеты за других, а просто свайпаешь <span style={{ color: "#6fdc8c", fontWeight: 700 }}>да</span> / <span style={{ color: "#ff8a8a", fontWeight: 700 }}>нет</span> — так и тут: AI предлагает бриф → драфт → варианты под каналы, а ты жмёшь <span style={{ background: "#0e2e1a", border: "1px solid #1f4a2b", borderRadius: 6, padding: "1px 6px", color: "#6fdc8c", fontWeight: 700 }}>Approve</span> / Request changes / Reject. Система сама паблишит, через 3ч/24ч/7д снимет метрики и предложит <code style={{ background: "#0b1420", padding: "1px 5px", borderRadius: 4 }}>next_test</code>.
         </p>
         <p style={{ fontSize: 11, color: "#5a6b86", margin: "10px 0 0", lineHeight: 1.5 }}>
-          Цель — человек всё меньше пишет руками, всё больше валидирует. Контроль остаётся у человека (гейт на Review), рутина — у AI и адаптеров. Луп замыкается: <code style={{ background: "#0b1420", padding: "1px 5px", borderRadius: 4 }}>reflected → новая idea</code>.
+          Цель — человек всё меньше пишет руками, всё больше валидирует. Контроль остаётся у человека (гейт на Review 👤), рутина — у AI 🤖 и адаптеров. Луп замыкается: <code style={{ background: "#0b1420", padding: "1px 5px", borderRadius: 4 }}>reflected → новая idea</code>.
         </p>
       </div>
       <p style={{ opacity: 0.6, fontSize: 12, margin: "0 0 14px", lineHeight: 1.5, color: "#5a6b86" }}>
