@@ -36,7 +36,7 @@ const STATUSES = [
 export default function GuidePage() {
   const [tab, setTab] = useState<Tab>("pipeline");
   return (
-    <div style={{ maxWidth: 980 }}>
+    <div style={{ maxWidth: 1150 }}>
       <h1 style={{ fontSize: 26, margin: "0 0 6px" }}>Guide — Content Loop</h1>
       <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 16, marginBottom: 14 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "#cfe0ff", marginBottom: 8 }}>Идея — Tinder для контента</div>
@@ -159,7 +159,7 @@ export default function GuidePage() {
                           marginBottom: 6,
                         }}
                       />
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, height: 110, justifyContent: "center" }}>
                         <div
                           style={{
                             width: 44,

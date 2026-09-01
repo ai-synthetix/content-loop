@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ fontFamily: "system-ui, sans-serif", margin: 0, background: "#0a0a0a", color: "#eee" }}>
         <GlobalGenerationBar />
         <Header />
-        <main style={{ padding: 20, maxWidth: 1100, margin: "0 auto" }}>
+        <main style={{ padding: 20, maxWidth: 1320, margin: "0 auto" }}>
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>
       </body>
