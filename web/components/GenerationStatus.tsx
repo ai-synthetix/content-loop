@@ -30,6 +30,7 @@ function stepText(step: string, progress: number) {
 
 const STATUS_COLOR: Record<string, { bg: string; fg: string; border: string }> = {
   pending: { bg: "#1a2740", fg: "#8cb4ff", border: "#2a3a52" },
+  queued: { bg: "#1e293b", fg: "#94a3b8", border: "#334155" },
   running: { bg: "#2a220a", fg: "#ffcf66", border: "#4a3d16" },
   succeeded: { bg: "#0e2e1a", fg: "#6fdc8c", border: "#1f4a2b" },
   failed: { bg: "#33151a", fg: "#ff8a8a", border: "#5a2a33" },
@@ -72,7 +73,7 @@ export function GenerationBadge({ job }: { job: Job | null }) {
 export function GenerationProgress({ job, compact = false }: { job: Job | null; compact?: boolean }) {
   if (!job) return null;
   const pct = Math.max(0, Math.min(100, Number(job.progress) || 0));
-  const running = job.status === "pending" || job.status === "running";
+  const running = job.status === "pending" || job.status === "running" || job.status === "queued";
   return (
     <div style={{ display: "grid", gap: 6, minWidth: 0 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>

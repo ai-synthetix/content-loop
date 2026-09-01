@@ -75,17 +75,24 @@ type chatResponse struct {
 }
 
 func (p *Provider) Complete(ctx context.Context, system, user string) (string, error) {
-	// retry with backoff once + fallback model on timeout
+	// retry with backoff once + fallback model on timeout/429/5xx
 	res, err := p.completeWithModel(ctx, system, user, p.Model)
 	if err == nil {
 		return res, nil
 	}
-	// classify timeout / deadline errors for retry
-	isTimeout := strings.Contains(err.Error(), "deadline") || strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "Client.Timeout") || strings.Contains(err.Error(), "context deadline")
-	if isTimeout {
-		log.Printf("[ai] Complete timeout model=%s err=%v — retrying once with backoff 2s", p.Model, err)
+	// classify retryable errors
+	lower := strings.ToLower(err.Error())
+	isTimeout := strings.Contains(lower, "deadline") || strings.Contains(lower, "timeout") || strings.Contains(err.Error(), "Client.Timeout") || strings.Contains(lower, "context deadline")
+	is429 := strings.Contains(lower, "429") || strings.Contains(lower, "rate limit") || strings.Contains(lower, "too many requests")
+	is5xx := strings.Contains(err.Error(), " 500") || strings.Contains(err.Error(), "status 500") || strings.Contains(err.Error(), "502") || strings.Contains(err.Error(), "503") || strings.Contains(err.Error(), "504") || strings.Contains(lower, "5xx")
+	if isTimeout || is429 || is5xx {
+		backoff := 2 * time.Second
+		if is429 {
+			backoff = 3 * time.Second
+		}
+		log.Printf("[ai] Complete retryable error model=%s err=%v — retrying with backoff %s (429=%v timeout=%v 5xx=%v)", p.Model, err, backoff, is429, isTimeout, is5xx)
 		select {
-		case <-time.After(2 * time.Second):
+		case <-time.After(backoff):
 		case <-ctx.Done():
 			return "", ctx.Err()
 		}
@@ -103,9 +110,9 @@ func (p *Provider) Complete(ctx context.Context, system, user string) (string, e
 				return res3, nil
 			}
 			log.Printf("[ai] fallback model %s also failed: %v", fm, err3)
-			return "", fmt.Errorf("primary %s timeout (%v; retry %v), fallback %s failed: %w", p.Model, err, err2, fm, err3)
+			return "", fmt.Errorf("primary %s failed (%v; retry %v), fallback %s failed: %w", p.Model, err, err2, fm, err3)
 		}
-		return "", fmt.Errorf("ai timeout after retry: %w (first: %v)", err2, err)
+		return "", fmt.Errorf("ai failed after retry: %w (first: %v)", err2, err)
 	}
 	return "", err
 }

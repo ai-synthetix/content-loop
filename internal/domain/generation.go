@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -15,6 +18,45 @@ import (
 	"github.com/ai-synthetix/content-loop/internal/ai"
 	"github.com/ai-synthetix/content-loop/internal/store"
 )
+
+// generation queue limiter — semaphore capacity from GEN_CONCURRENCY (default 2)
+var (
+	genSemaphore     chan struct{}
+	genSemaphoreOnce sync.Once
+)
+
+func getGenSemaphore() chan struct{} {
+	genSemaphoreOnce.Do(func() {
+		n := 2
+		if s := os.Getenv("GEN_CONCURRENCY"); s != "" {
+			if v, err := strconv.Atoi(s); err == nil && v > 0 {
+				n = v
+			}
+		}
+		genSemaphore = make(chan struct{}, n)
+	})
+	return genSemaphore
+}
+
+func isRetryableErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	if strings.Contains(s, "deadline") || strings.Contains(s, "timeout") || strings.Contains(s, "timed out") || strings.Contains(s, "context deadline") {
+		return true
+	}
+	if strings.Contains(s, "429") || strings.Contains(s, "rate limit") || strings.Contains(s, "too many requests") {
+		return true
+	}
+	if strings.Contains(s, "connection") {
+		return true
+	}
+	if strings.Contains(s, "500") || strings.Contains(s, "502") || strings.Contains(s, "503") || strings.Contains(s, "504") || strings.Contains(s, "5xx") {
+		return true
+	}
+	return false
+}
 
 // GenerationService orchestrates plan_topic → build_brief → draft_canonical → render_variant → verify → prepare_review
 type GenerationService struct {
@@ -145,19 +187,60 @@ func (g *GenerationService) GenerateAsync(contentItemID, ownerUserID string) (ma
 		return nil, err
 	}
 	jobID, _ := job["id"].(string)
-	// start running immediately
+	// background worker with queue limiter (semaphore cap 2) + retry with backoff 3 attempts
 	go func() {
 		ctx := context.Background()
-		// mark running
-		g.updateJob(jobID, ownerUserID, "running", "plan_topic", 5, nil)
-		_, runErr := g.generateWithProgress(ctx, contentItemID, ownerUserID, jobID)
-		if runErr != nil {
-			msg := runErr.Error()
-			g.updateJob(jobID, ownerUserID, "failed", "verify", 100, &msg)
-			log.Printf("[generation] async job %s failed: %v", jobID, runErr)
-			return
+		sem := getGenSemaphore()
+		// try acquire without blocking to detect queuing
+		select {
+		case sem <- struct{}{}:
+		default:
+			queuedMsg := "queued waiting for concurrency slot"
+			_ = queuedMsg
+			g.updateJob(jobID, ownerUserID, "queued", "plan_topic", 0, nil)
+			// blocking acquire
+			sem <- struct{}{}
 		}
-		// succeeded already updated inside generateWithProgress, ensure final
+		defer func() { <-sem }()
+
+		// retry loop up to 3 attempts with exponential backoff 30s * 2^retry (30, 60, 120)
+		g.updateJob(jobID, ownerUserID, "running", "plan_topic", 5, nil)
+		var lastErr error
+		for attempt := 0; attempt < 3; attempt++ {
+			_, runErr := g.generateWithProgress(ctx, contentItemID, ownerUserID, jobID)
+			if runErr == nil {
+				// succeeded already updated inside generateWithProgress
+				return
+			}
+			lastErr = runErr
+			if !isRetryableErr(runErr) || attempt == 2 {
+				msg := lastErr.Error()
+				g.updateJob(jobID, ownerUserID, "failed", "verify", 100, &msg)
+				log.Printf("[generation] async job %s failed after %d attempt(s): %v", jobID, attempt+1, lastErr)
+				return
+			}
+			backoff := time.Duration(30*(1<<attempt)) * time.Second
+			nextAttemptAt := time.Now().Add(backoff)
+			retryMsg := fmt.Sprintf("retry %d/3 after error: %v (backoff %s)", attempt+1, lastErr, backoff)
+			g.updateJob(jobID, ownerUserID, "running", "plan_topic", 5, &retryMsg)
+			if g.Store != nil && g.Store.DB != nil {
+				_, _ = g.Store.Update("generation_job", jobID, ownerUserID, map[string]any{"retry_count": attempt + 1, "next_attempt_at": nextAttemptAt})
+			}
+			log.Printf("[generation] job %s retry %d/3 backoff %s err=%v", jobID, attempt+1, backoff, lastErr)
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				msg := ctx.Err().Error()
+				g.updateJob(jobID, ownerUserID, "failed", "verify", 100, &msg)
+				return
+			}
+			g.updateJob(jobID, ownerUserID, "running", "plan_topic", 5, nil)
+		}
+		if lastErr != nil {
+			msg := lastErr.Error()
+			g.updateJob(jobID, ownerUserID, "failed", "verify", 100, &msg)
+			log.Printf("[generation] async job %s failed: %v", jobID, lastErr)
+		}
 	}()
 	return job, nil
 }
@@ -201,7 +284,8 @@ func (g *GenerationService) generateWithProgress(ctx context.Context, contentIte
 	}
 	// 3 draft 60%
 	update("draft", 60)
-	canonical := g.draftCanonical(ctx, title, brief)
+	policyJSON := extractPolicyJSON(projectJSON)
+	canonical := g.draftCanonical(ctx, title, brief, policyJSON)
 	// 4 verify 80% (run verify before persist to report)
 	update("verify", 80)
 	vr := verify(canonical)
@@ -297,7 +381,8 @@ func (g *GenerationService) Generate(ctx context.Context, contentItemID, ownerUs
 	}
 
 	// 3. draft_canonical via AI
-	canonical := g.draftCanonical(ctx, title, brief)
+	policyJSON := extractPolicyJSON(projectJSON)
+	canonical := g.draftCanonical(ctx, title, brief, policyJSON)
 
 	// 4. verify
 	vr := verify(canonical)
@@ -505,7 +590,39 @@ type canonicalDraft struct {
 	Sources      []string `json:"sources"`
 }
 
-func (g *GenerationService) draftCanonical(ctx context.Context, title string, brief map[string]any) canonicalDraft {
+func extractPolicyJSON(projectJSON string) string {
+	if strings.TrimSpace(projectJSON) == "" || projectJSON == "{}" {
+		return ""
+	}
+	var raw map[string]any
+	if err := json.Unmarshal([]byte(projectJSON), &raw); err != nil {
+		return projectJSON
+	}
+	// prefer "policy" field if present
+	if v, ok := raw["policy"]; ok && v != nil {
+		switch pv := v.(type) {
+		case string:
+			if strings.TrimSpace(pv) != "" {
+				// may be JSON string or plain
+				return pv
+			}
+		default:
+			if b, err := json.Marshal(pv); err == nil {
+				return string(b)
+			}
+		}
+	}
+	// fallback: if projectJSON itself looks like policy (has tone/banned_phrases)
+	if _, ok := raw["tone"]; ok {
+		return projectJSON
+	}
+	if _, ok := raw["banned_phrases"]; ok {
+		return projectJSON
+	}
+	return ""
+}
+
+func (g *GenerationService) draftCanonical(ctx context.Context, title string, brief map[string]any, policyJSON string) canonicalDraft {
 	// truncate inputs dramatically to avoid gateway timeout (was whole project JSON)
 	if len(title) > 100 {
 		title = string([]rune(title)[:100])
@@ -515,8 +632,10 @@ func (g *GenerationService) draftCanonical(ctx context.Context, title string, br
 	if len(bj) > 2000 {
 		bj = bj[:2000]
 	}
-	userMsg := ai.UserDraftCanonical(title, bj)
-	resp, err := g.AI.Complete(ctx, ai.SystemBase, userMsg)
+	// policy-aware prompt + human system prompt
+	systemPrompt := ai.HumanSystemPrompt(extractTone(policyJSON))
+	userMsg := ai.BuildDraftPromptWithPolicy(title, bj, policyJSON)
+	resp, err := g.AI.Complete(ctx, systemPrompt, userMsg)
 	if err != nil {
 		log.Printf("[generation] draftCanonical Complete error title=%q err=%v full_err=%+v", title, err, err)
 		// one retry with even smaller prompt before fallback
@@ -528,11 +647,11 @@ func (g *GenerationService) draftCanonical(ctx context.Context, title string, br
 		if len(smallTitle) > 60 {
 			smallTitle = string([]rune(smallTitle)[:60])
 		}
-		smallMsg := ai.UserDraftCanonical(smallTitle, smallerBrief)
+		smallMsg := ai.BuildDraftPromptWithPolicy(smallTitle, smallerBrief, policyJSON)
 		// short inline prompt override: request even shorter output
 		smallMsg += "\nKeep body_markdown under 800 words, be very concise."
 		log.Printf("[generation] draftCanonical retry with smaller prompt title=%q brief_len=%d", smallTitle, len(smallerBrief))
-		resp2, err2 := g.AI.Complete(ctx, ai.SystemBase, smallMsg)
+		resp2, err2 := g.AI.Complete(ctx, systemPrompt, smallMsg)
 		if err2 == nil {
 			resp = resp2
 			err = nil
@@ -543,12 +662,24 @@ func (g *GenerationService) draftCanonical(ctx context.Context, title string, br
 		}
 	}
 	if err == nil {
+		resp = ai.CleanAIisms(resp)
 		if m := tryParseJSON(resp); m != nil {
+			// also clean body_markdown inside parsed JSON
+			if bm, ok := m["body_markdown"].(string); ok {
+				m["body_markdown"] = ai.CleanAIisms(bm)
+			}
+			if bm, ok := m["body"].(string); ok {
+				m["body"] = ai.CleanAIisms(bm)
+			}
 			atomic.AddInt64(&aiSuccessCanonicalCount, 1)
 			log.Printf("[generation] draftCanonical AI JSON success title=%q body_len=%d snip=%q", title, len(resp), substr(resp, 200))
-			return mapToCanonical(m, title)
+			c := mapToCanonical(m, title)
+			c.BodyMarkdown = ai.CleanAIisms(c.BodyMarkdown)
+			c.Excerpt = ai.CleanAIisms(c.Excerpt)
+			return c
 		}
 		trimmed := strings.TrimSpace(resp)
+		trimmed = ai.CleanAIisms(trimmed)
 		if len(trimmed) > 100 {
 			log.Printf("[generation] draftCanonical raw markdown fallback title=%q resp_len=%d snip=%q", title, len(trimmed), substr(trimmed, 500))
 			atomic.AddInt64(&aiSuccessCanonicalCount, 1)
@@ -566,6 +697,23 @@ func (g *GenerationService) draftCanonical(ctx context.Context, title string, br
 		Claims:  extractClaims(brief),
 		Sources: extractSources(brief),
 	}
+}
+
+func extractTone(policyJSON string) string {
+	if strings.TrimSpace(policyJSON) == "" {
+		return ""
+	}
+	var raw map[string]any
+	if err := json.Unmarshal([]byte(policyJSON), &raw); err != nil {
+		return ""
+	}
+	if v, ok := raw["tone"].(string); ok {
+		return v
+	}
+	if v, ok := raw["voice"].(string); ok {
+		return v
+	}
+	return ""
 }
 
 func (g *GenerationService) renderVariants(ctx context.Context, contentItemID, versionID, ownerUserID string, c canonicalDraft) []map[string]any {
