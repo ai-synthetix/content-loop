@@ -38,8 +38,20 @@ export default function GuidePage() {
   return (
     <div style={{ maxWidth: 980 }}>
       <h1 style={{ fontSize: 26, margin: "0 0 6px" }}>Guide — Content Loop</h1>
-      <p style={{ opacity: 0.6, fontSize: 13, margin: "0 0 14px" }}>
-        The editorial pipeline from idea to reflected learnings. Every item lives in one status at a time; per-channel delivery is tracked separately via <code style={{ background: "#111", padding: "2px 6px", borderRadius: 6 }}>publication</code> rows.
+      <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 16, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#cfe0ff", marginBottom: 8 }}>Идея — Tinder для контента</div>
+        <p style={{ fontSize: 13, color: "#8FA0B8", lineHeight: 1.6, margin: 0 }}>
+          Раньше человек делал всё сам: придумывал тему, писал черновик, вычитывал, публиковал, смотрел реакцию. Сейчас AI генерит в 100 раз быстрее, но люди будут всё хуже <em style={{ color: "#cfe0ff" }}>создавать</em> — и всё лучше <em style={{ color: "#cfe0ff" }}>валидировать</em>.
+        </p>
+        <p style={{ fontSize: 13, color: "#8FA0B8", lineHeight: 1.6, margin: "8px 0 0" }}>
+          Как в Тиндере ты не пишешь анкеты за других, а просто свайпаешь <span style={{ color: "#6fdc8c", fontWeight: 700 }}>да</span> / <span style={{ color: "#ff8a8a", fontWeight: 700 }}>нет</span> — так и тут: AI предлагает бриф → драфт → варианты под каналы, а ты жмёшь <span style={{ background: "#0e2e1a", border: "1px solid #1f4a2b", borderRadius: 6, padding: "1px 6px", color: "#6fdc8c", fontWeight: 700 }}>Approve</span> / Request changes / Reject. Система сама паблишит, через 3ч/24ч/7д снимет метрики и предложит <code style={{ background: "#0b1420", padding: "1px 5px", borderRadius: 4 }}>next_test</code>.
+        </p>
+        <p style={{ fontSize: 11, color: "#5a6b86", margin: "10px 0 0", lineHeight: 1.5 }}>
+          Цель — человек всё меньше пишет руками, всё больше валидирует. Контроль остаётся у человека (гейт на Review), рутина — у AI и адаптеров. Луп замыкается: <code style={{ background: "#0b1420", padding: "1px 5px", borderRadius: 4 }}>reflected → новая idea</code>.
+        </p>
+      </div>
+      <p style={{ opacity: 0.6, fontSize: 12, margin: "0 0 14px", lineHeight: 1.5, color: "#5a6b86" }}>
+        Ниже — как это устроено технически: 8 шагов пайплайна, в каждом — реальные статусы системы.
       </p>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
