@@ -241,28 +241,6 @@ export default function GuidePage() {
             </div>
           </div>
 
-          <h2 style={{ fontSize: 16, margin: "24px 0 10px" }}>Human vs AI roles</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 14 }}>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, color: "#cfe0ff" }}>Human decides</div>
-              <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: "#8FA0B8", lineHeight: 1.7 }}>
-                <li>Creates idea (Queue → + New item)</li>
-                <li>Edits brief & draft</li>
-                <li>Review gate: <em>approve / changes_requested / reject</em></li>
-                <li>Chooses channels & schedule</li>
-                <li>Accepts or overrides reflection</li>
-              </ul>
-            </div>
-            <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 14 }}>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, color: "#cfe0ff" }}>AI assists</div>
-              <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: "#8FA0B8", lineHeight: 1.7 }}>
-                <li>Scaffolds brief from raw notes</li>
-                <li>Drafts canonical markdown (claims + sources)</li>
-                <li>Verifies claims against sources</li>
-                <li>Measures metrics → proposes hypotheses</li>
-                <li>Never auto-publishes; never auto-approves</li>
-              </ul>
-            </div>
           </div>
         </>
       )}
@@ -341,77 +319,6 @@ factory.PublisherForChannel(ctx, channelID, ownerUserID) (Publisher, error)
           </div>
         </>
       )}
-
-      <h2 style={{ fontSize: 16, margin: "24px 0 10px" }}>Screenshots</h2>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 }}>
-        {[
-          { title: "Queue", desc: "Review queue with + New item", file: "queue.png" },
-          { title: "Item detail", desc: "Generate → Review → Approve → Publish", file: "item-detail.png" },
-          { title: "Channels", desc: "Encrypted channel configs + Test", file: "channels.png" },
-        ].map((s) => (
-          <div key={s.file} style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 12 }}>
-            <div
-              style={{
-                background: "#0b111a",
-                border: "1px dashed #2a3a52",
-                borderRadius: 10,
-                height: 140,
-                display: "grid",
-                placeItems: "center",
-                color: "#5a6b86",
-                fontSize: 11,
-                textAlign: "center",
-                padding: 12,
-              }}
-            >
-              <div>
-                📸 {s.file}
-                <br />
-                <span style={{ opacity: 0.7 }}>Drop real screenshot to web/public/{s.file}</span>
-                <br />
-                <span style={{ fontSize: 10, opacity: 0.5 }}>Shown as placeholder until image is added</span>
-              </div>
-            </div>
-            <div style={{ fontWeight: 700, fontSize: 12, color: "#cfe0ff", marginTop: 8 }}>{s.title}</div>
-            <div style={{ fontSize: 11, color: "#8FA0B8" }}>{s.desc}</div>
-          </div>
-        ))}
-      </div>
-
-      <h2 style={{ fontSize: 16, margin: "24px 0 10px" }}>3-step quickstart</h2>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
-        {[
-          {
-            n: "1",
-            title: "Create project + channels",
-            body: (
-              <>
-                Go to <Link href="/projects" style={{ color: "#8fb8ff" }}>Projects</Link> → New project, then <Link href="/settings/channels" style={{ color: "#8fb8ff" }}>Channels</Link> → Add Telegram / FamilyOS. “Check” until status is OK.
-              </>
-            ),
-          },
-          {
-            n: "2",
-            title: "Create item & generate",
-            body: <>Queue → <strong>+ New item</strong> → title + brief + project → Create. Brief is auto-scaffolded; open the item and click <strong>Generate</strong> to draft. Iterate via Review.</>,
-          },
-          {
-            n: "3",
-            title: "Approve & publish",
-            body: (
-              <>
-                In the item page select channels, click <strong>Approve</strong> then <strong>Publish</strong>. Per-channel delivery appears; use <strong>Fetch metrics</strong> later to move to <em>measuring</em> → <em>reflected</em>.
-              </>
-            ),
-          },
-        ].map((s) => (
-          <div key={s.n} style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 14 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 999, background: "#3D8DFF", color: "#fff", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 13, marginBottom: 8 }}>{s.n}</div>
-            <div style={{ fontWeight: 700, fontSize: 13, color: "#cfe0ff", marginBottom: 6 }}>{s.title}</div>
-            <div style={{ fontSize: 12, color: "#8FA0B8", lineHeight: 1.6 }}>{s.body}</div>
-          </div>
-        ))}
-      </div>
 
       <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
         <Link href="/" style={{ background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color: "#fff", borderRadius: 10, padding: "9px 16px", textDecoration: "none", fontWeight: 700, fontSize: 13 }}>
