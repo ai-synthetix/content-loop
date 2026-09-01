@@ -34,43 +34,66 @@ const STATUSES = [
 ];
 
 export default function GuidePage() {
-  const [tab, setTab] = useState<Tab>("pipeline");
+  const [tab, setTab] = useState<Tab>("projects");
   return (
     <div style={{ maxWidth: 1150 }}>
       <h1 style={{ fontSize: 26, margin: "0 0 6px" }}>Guide — Content Loop</h1>
       <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 16, marginBottom: 14 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#cfe0ff", marginBottom: 8 }}>Идея — Tinder для контента</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#cfe0ff", marginBottom: 8 }}>Идея — Tinder для контента <span style={{ fontSize: 11, color: "#5a6b86", fontWeight: 400 }}>· SwipeLoop</span></div>
         <p style={{ fontSize: 13, color: "#8FA0B8", lineHeight: 1.6, margin: 0 }}>
-          Раньше человек делал всё сам: придумывал тему, писал черновик, вычитывал, публиковал, смотрел реакцию. Сейчас AI генерит в 100 раз быстрее, но люди будут всё хуже <em style={{ color: "#cfe0ff" }}>создавать</em> — и всё лучше <em style={{ color: "#cfe0ff" }}>валидировать</em>.
+          Раньше человек делал всё сам: придумывал тему, писал черновик, вычитывал, публиковал. Сейчас AI генерит в 100× быстрее, но люди будут всё хуже <em style={{ color: "#cfe0ff" }}>создавать</em> — и всё лучше <em style={{ color: "#cfe0ff" }}>валидировать</em>. Как в Тиндере: не пишешь анкеты, а свайпаешь.
         </p>
         <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "center", margin: "12px 0", background: "#0b1420", border: "1px solid #1e2f44", borderRadius: 10, padding: "10px 12px" }}>
           <div style={{ textAlign: "center", flex: 1 }}>
             <div style={{ fontSize: 22 }}>👤</div>
             <div style={{ fontSize: 11, color: "#cfe0ff", fontWeight: 700 }}>человек</div>
-            <div style={{ fontSize: 10, color: "#6fdc8c" }}>валидирует да / нет</div>
-            <div style={{ fontSize: 9, color: "#5a6b86", marginTop: 2 }}>свайп Approve / Reject</div>
+            <div style={{ fontSize: 10, color: "#6fdc8c" }}>бинарный выбор</div>
+            <div style={{ fontSize: 9, color: "#5a6b86", marginTop: 2 }}>А vs Б · лайк / дизлайк</div>
           </div>
           <div style={{ fontSize: 16, color: "#3D8DFF", fontWeight: 700 }}>⇄</div>
           <div style={{ textAlign: "center", flex: 1 }}>
             <div style={{ fontSize: 22 }}>🤖</div>
             <div style={{ fontSize: 11, color: "#cfe0ff", fontWeight: 700 }}>AI</div>
-            <div style={{ fontSize: 10, color: "#8FA0B8" }}>генерит бриф / драфт / варианты</div>
+            <div style={{ fontSize: 10, color: "#8FA0B8" }}>генерит идеи · драфты · варианты</div>
             <div style={{ fontSize: 9, color: "#5a6b86", marginTop: 2 }}>mimo-v2.5 + адаптеры</div>
           </div>
         </div>
-        <p style={{ fontSize: 13, color: "#8FA0B8", lineHeight: 1.6, margin: "8px 0 0" }}>
-          Как в Тиндере ты не пишешь анкеты за других, а просто свайпаешь <span style={{ color: "#6fdc8c", fontWeight: 700 }}>да</span> / <span style={{ color: "#ff8a8a", fontWeight: 700 }}>нет</span> — так и тут: AI предлагает бриф → драфт → варианты под каналы, а ты жмёшь <span style={{ background: "#0e2e1a", border: "1px solid #1f4a2b", borderRadius: 6, padding: "1px 6px", color: "#6fdc8c", fontWeight: 700 }}>Approve</span> / Request changes / Reject. Система сама паблишит, через 3ч/24ч/7д снимет метрики и предложит <code style={{ background: "#0b1420", padding: "1px 5px", borderRadius: 4 }}>next_test</code>.
+        <p style={{ fontSize: 12, color: "#8FA0B8", lineHeight: 1.6, margin: "8px 0 0", background: "#0b1420", border: "1px solid #1e2f44", borderRadius: 8, padding: "8px 10px" }}>
+          Поток: добавил <span style={{ color: "#cfe0ff", fontWeight: 700 }}>проект</span> + <span style={{ color: "#cfe0ff" }}>источники (1…n)</span> → получаешь ленту карточек: заголовки-идеи и формулировки-черновики. На каждую — только бинарно: <span style={{ color: "#6fdc8c" }}>а) выбери А vs Б</span> или <span style={{ color: "#6fdc8c" }}>б) лайк / дизлайк</span> на вариант А. На толчке — 2 сек, свайп, готово. Сначала ручной режим (Generate → Review → Approve как сейчас), потом тот же пайплайн, но в режиме поточной ленты свайпов.
         </p>
         <p style={{ fontSize: 11, color: "#5a6b86", margin: "10px 0 0", lineHeight: 1.5 }}>
-          Цель — человек всё меньше пишет руками, всё больше валидирует. Контроль остаётся у человека (гейт на Review 👤), рутина — у AI 🤖 и адаптеров. Луп замыкается: <code style={{ background: "#0b1420", padding: "1px 5px", borderRadius: 4 }}>reflected → новая idea</code>.
+          Publish / Measuring / Reflected — дополнительные. Можно просто сгенерить пост, а можно пустить в поток с публикацией и метриками. Свайп накладывается и туда и туда.
         </p>
+      </div>
+      <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#cfe0ff", marginBottom: 10 }}>Как это будет — схема</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr auto 1fr", gap: 8, alignItems: "center" }}>
+          <div style={{ background: "#0b1420", border: "1px solid #2a3a52", borderRadius: 10, padding: 10, textAlign: "center" }}>
+            <div style={{ fontSize: 16 }}>📁</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#cfe0ff", marginTop: 4 }}>1. Проект + источники</div>
+            <div style={{ fontSize: 10, color: "#8FA0B8", marginTop: 4 }}>проект + 1…n URL/заметок<br />идеи не обязан придумывать сам</div>
+          </div>
+          <div style={{ fontSize: 16, color: "#3D8DFF" }}>→</div>
+          <div style={{ background: "#0b1420", border: "1px solid #1f4a2b", borderRadius: 10, padding: 10, textAlign: "center" }}>
+            <div style={{ fontSize: 16 }}>👆</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#6fdc8c", marginTop: 4 }}>2. Свайп-лента</div>
+            <div style={{ fontSize: 10, color: "#8FA0B8", marginTop: 4 }}>идея: А vs Б<br />драфт: 👍 / 👎<br /><span style={{ fontSize: 9, color: "#5a6b86" }}>на толчке — 2 сек</span></div>
+          </div>
+          <div style={{ fontSize: 16, color: "#3D8DFF" }}>→</div>
+          <div style={{ background: "#0b1420", border: "1px solid #334155", borderRadius: 10, padding: 10, textAlign: "center" }}>
+            <div style={{ fontSize: 16 }}>📡</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#cfe0ff", marginTop: 4 }}>3. Поток (опционально)</div>
+            <div style={{ fontSize: 10, color: "#8FA0B8", marginTop: 4 }}>Publish → 3ч/24ч/7д → Reflected<br />или просто «сгенерил и забрал»</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 10, color: "#5a6b86", marginTop: 8, textAlign: "center" }}>Сейчас — ручной Generate/Review, далее — та же логика, но свайпами поверх</div>
       </div>
       <p style={{ opacity: 0.6, fontSize: 12, margin: "0 0 14px", lineHeight: 1.5, color: "#5a6b86" }}>
         Ниже — как это устроено технически: 8 шагов пайплайна, в каждом — реальные статусы системы.
       </p>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-        {(["pipeline", "projects", "channels"] as Tab[]).map((t) => (
+        {(["projects", "pipeline", "channels"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -220,6 +243,12 @@ export default function GuidePage() {
       {tab === "projects" && (
         <>
           <h2 style={{ fontSize: 16, margin: "10px 0 10px" }}>Projects & Queue</h2>
+          <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 14, marginBottom: 10 }}>
+            <div style={{ fontWeight: 700, color: "#cfe0ff", marginBottom: 6 }}>Зачем проект</div>
+            <p style={{ margin: 0, fontSize: 12, color: "#8FA0B8", lineHeight: 1.6 }}>
+              Проект — папка с контекстом: языки, каналы, policy и <span style={{ color: "#cfe0ff" }}>источники (1…n URL / заметок / файлов)</span>. Идеи не обязан придумывать ты — их предлагает AI на основе источников. Ты задаёшь рамки и дальше только валидируешь свайпами.
+            </p>
+          </div>
           <div style={{ display: "grid", gap: 10 }}>
             <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 14 }}>
               <strong style={{ fontSize: 13, color: "#cfe0ff" }}>Queue</strong> <span style={{ fontSize: 11, color: "#5a6b86" }}>— GET /api/v1/content-items</span>
