@@ -144,7 +144,22 @@ export default function ChannelsPage() {
                   <span style={{ opacity: 0.5, fontSize: 11 }}>{c.id.slice(0, 8)}…</span>
                 </div>
                 {c.project_id && <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>project: {projects.find(p=>p.id===c.project_id)?.name || c.project_id} <span style={{ opacity: 0.5 }}>({c.project_id.slice(0,8)}…)</span></div>}
-                <pre style={{ margin: "8px 0 0", background: "#0b111a", border: "1px solid #1e2f44", borderRadius: 8, padding: 8, fontSize: 11, overflow: "auto" }}>{JSON.stringify(c.config || {}, null, 2)}</pre>
+                <div style={{ margin: "8px 0 0", fontSize: 11, color: "#5a6b86", background: "#0b111a", border: "1px solid #1e2f44", borderRadius: 8, padding: "8px 10px", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {c.type === "telegram" ? (
+                    <>
+                      <span>bot_token: ••••••{String((c.config as any)?.bot_token || "").slice(-4) || "—"}</span>
+                      <span>·</span>
+                      <span>channel: {(c.config as any)?.channel_id || (c.config as any)?.chat_id || "—"}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>base_url: {(c.config as any)?.base_url || "—"}</span>
+                      <span>·</span>
+                      <span>api_key: {(c.config as any)?.api_key ? "••••" : "—"}</span>
+                    </>
+                  )}
+                  <span style={{ marginLeft: "auto", opacity: 0.4, fontSize: 10 }}>config hidden — edit to view</span>
+                </div>
               </div>
               <div style={{ display: "flex", gap: 8, flexDirection: "column", alignItems: "flex-end" }}>
                 <button onClick={() => handleTest(c.id)} disabled={testingId === c.id} style={{ ...btn, opacity: testingId === c.id ? 0.6 : 1, minWidth: 90 }}>{testingId === c.id ? "Testing…" : "Test"}</button>

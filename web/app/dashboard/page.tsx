@@ -86,9 +86,9 @@ export default function Dashboard() {
     })
     .slice(0, 3);
 
-  const card: React.CSSProperties = { background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 16 };
-  const label: React.CSSProperties = { fontSize: 11, color: "#8FA0B8", textTransform: "uppercase", letterSpacing: 0.5 };
-  const value: React.CSSProperties = { fontSize: 28, fontWeight: 800, color: "#dbe7ff", marginTop: 6 };
+  const card: React.CSSProperties = { background: "linear-gradient(135deg,#0f1620 0%,#16202e 100%)", border: "1px solid #1e2f44", borderRadius: 14, padding: 16, boxShadow: "0 4px 16px rgba(0,0,0,0.25)" };
+  const label: React.CSSProperties = { fontSize: 10, color: "#8FA0B8", textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700 };
+  const value: React.CSSProperties = { fontSize: 28, fontWeight: 800, color: "#dbe7ff", marginTop: 8 };
 
   return (
     <div>
@@ -99,34 +99,34 @@ export default function Dashboard() {
       <p style={{ fontSize: 12, opacity: 0.6, margin: "6px 0 0" }}>Overview from content-items, publications, metric-snapshots, reflections.</p>
 
       <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
-        <div style={card}>
-          <div style={label}>Total items</div>
+        <div style={{ ...card, borderTop: "2px solid #3D8DFF" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 16 }}>📄</span><div style={label}>Total items</div></div>
           <div style={value}>{total}</div>
           <Link href="/" style={{ fontSize: 11, color: "#7eb8ff" }}>View items →</Link>
         </div>
-        <div style={card}>
-          <div style={label}>Published last 7d</div>
+        <div style={{ ...card, borderTop: "2px solid #22c55e" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 16 }}>📡</span><div style={label}>Published last 7d</div></div>
           <div style={value}>{publishedLast7d}</div>
           <div style={{ fontSize: 11, opacity: 0.5, marginTop: 4 }}>{pubs.length} total publications</div>
         </div>
-        <div style={card}>
-          <div style={label}>Metrics coverage</div>
+        <div style={{ ...card, borderTop: "2px solid #f59e0b" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 16 }}>📊</span><div style={label}>Metrics coverage</div></div>
           <div style={value}>{metricsCoverage}%</div>
           <div style={{ fontSize: 11, opacity: 0.5, marginTop: 4 }}>{pubsWithMetrics}/{pubs.length} pubs with snapshots · {snaps.length} snapshots</div>
         </div>
-        <div style={card}>
-          <div style={label}>Reflections</div>
+        <div style={{ ...card, borderTop: "2px solid #8b5cf6" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 16 }}>💭</span><div style={label}>Reflections</div></div>
           <div style={value}>{refls.length}</div>
           <div style={{ fontSize: 11, opacity: 0.5, marginTop: 4 }}>Learnings captured</div>
         </div>
-        <div style={{ ...card, background: "#1e1a33", border: "1px solid #3a2a5a" }}>
-          <div style={{ ...label, color: "#b4a0ff" }}>Closed loops</div>
+        <div style={{ ...card, background: "linear-gradient(135deg,#1e1a33 0%,#2a1f4d 100%)", border: "1px solid #3a2a5a", borderTop: "2px solid #b4a0ff" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 16 }}>🔄</span><div style={{ ...label, color: "#b4a0ff" }}>Closed loops</div></div>
           <div style={{ ...value, color: "#e9ddff" }}>{closedLoopsCount}</div>
           <div style={{ fontSize: 11, color: "#9a85d6", marginTop: 4 }}>brief contains from_reflection_id</div>
           {closedLoopsLast3.length > 0 ? (
             <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
               {closedLoopsLast3.map(it => (
-                <Link key={it.id} href={`/items/${it.id}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 8px", background: "#16112a", border: "1px solid #3a2a5a", borderRadius: 8, textDecoration: "none", color: "#d8ccff", fontSize: 12 }}>
+                <Link key={it.id} href={`/items/${it.id}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 8px", background: "rgba(22,17,42,0.8)", border: "1px solid #3a2a5a", borderRadius: 8, textDecoration: "none", color: "#d8ccff", fontSize: 12 }}>
                   <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.title || it.slug || it.id.slice(0, 8)}</span>
                   <span style={{ color: "#8b5cf6", whiteSpace: "nowrap", fontSize: 11 }}>→</span>
                 </Link>
