@@ -186,20 +186,6 @@ export default function GuidePage() {
             </div>
           </div>
 
-          <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap", fontSize: 11, color: "#8FA0B8" }}>
-            <span style={{ background: "#1a2740", border: "1px solid #2a3a52", borderRadius: 20, padding: "4px 10px" }}>Human gate at Review</span>
-            <span style={{ background: "#0e2e1a", border: "1px solid #1f4a2b", borderRadius: 20, padding: "4px 10px" }}>Channel-state is independent</span>
-            <span style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 20, padding: "4px 10px" }}>Idempotency key prevents double-post</span>
-          </div>
-
-          <div style={{ marginTop: 14, background: "#0b1420", border: "1px solid #1e2f44", borderRadius: 10, padding: 12, overflowX: "auto" }}>
-            <div style={{ fontSize: 11, color: "#5a6b86", marginBottom: 4 }}>ASCII</div>
-            <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.5, color: "#8FA0B8", whiteSpace: "pre" }}>{`idea → brief_ready → drafting → review_ready → approved → publishing → published → measuring → reflected
-                        ↘ rejected ↘ changes_requested → drafting
-                                    ↘ scheduled → publishing → failed ↻ → publishing
-                                                  → partially_published`}</pre>
-          </div>
-
           <h2 style={{ fontSize: 16, margin: "24px 0 10px" }}>Statuses</h2>
           <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, overflow: "hidden", overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 520 }}>
