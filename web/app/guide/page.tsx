@@ -102,9 +102,9 @@ export default function GuidePage() {
               <div style={{ position: "absolute", right: "6.5%", top: 8, width: 1, height: 24, background: "#8b5cf6" }} />
               <div style={{ position: "absolute", left: "5.5%", top: 32, width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: "8px solid #8b5cf6", marginLeft: -6 }} />
             </div>
-            <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 260 }}>
+            <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 285 }}>
               <div style={{ position: "absolute", left: "50px", right: "50px", top: "59px", height: "1px", background: "#4a3a7a", opacity: 0.9, pointerEvents: "none" }} />
-              <div style={{ display: "flex", alignItems: "stretch", gap: 8, height: 260, position: "relative", zIndex: 1 }}>
+              <div style={{ display: "flex", alignItems: "stretch", gap: 8, height: 285, position: "relative", zIndex: 1 }}>
                 {STAGES.map((st, i) => (
                   <div key={st.key} style={{ display: "flex", alignItems: "flex-start", flex: 1, gap: 0 }}>
                     <div style={{ flex: 1, textAlign: "center", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", height: "100%" }}>
@@ -174,6 +174,9 @@ export default function GuidePage() {
                         <div style={{ fontSize: 12, fontWeight: 700, color: "#cfe0ff", textAlign: "center" }}>{st.label}</div>
                         <div style={{ fontSize: 10, color: "#8FA0B8", lineHeight: 1.2, minHeight: 24, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.hint}</div>
                         <div style={{ fontSize: 10, color: "#5a6b86", fontWeight: 400, minHeight: 14, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.caption}</div>
+                        <div style={{ fontSize: 9, color: st.owner.includes("human") ? "#6fdc8c" : st.owner === "AI" ? "#8FA0B8" : "#8b9dff", background: "rgba(255,255,255,0.05)", border: "1px solid #1e2f44", borderRadius: 10, padding: "1px 6px", marginTop: 2, whiteSpace: "nowrap" }}>
+                          {st.owner.includes("human") && st.owner.includes("AI") ? "👤🤖" : st.owner.includes("human") ? "👤" : st.owner === "AI" ? "🤖" : st.owner.includes("system") ? "⚙️" : "•"} {st.owner}
+                        </div>
                       </div>
                     </div>
                   </div>
