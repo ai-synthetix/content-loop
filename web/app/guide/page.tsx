@@ -79,8 +79,8 @@ export default function GuidePage() {
                 Замыкает луп: новая идея из reflected (next_test)
               </text>
             </svg>
-            <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 170 }}>
-              <div style={{ display: "flex", alignItems: "stretch", gap: 0, height: 170 }}>
+            <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 210 }}>
+              <div style={{ display: "flex", alignItems: "stretch", gap: 0, height: 210 }}>
                 {STAGES.map((st, i) => (
                   <div key={st.key} style={{ display: "flex", alignItems: "flex-start", flex: 1, gap: 0 }}>
                     <div style={{ flex: 1, textAlign: "center", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", height: "100%" }}>
