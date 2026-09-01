@@ -27,6 +27,7 @@ export function Header() {
           <Link href="/" style={{ color: "#8fb8ff", textDecoration: "none" }}>Queue</Link>
           <Link href="/projects" style={{ color: "#8fb8ff", textDecoration: "none" }}>Projects</Link>
           <Link href="/settings/channels" style={{ color: "#8fb8ff", textDecoration: "none" }}>Channels</Link>
+          <Link href="/prompts" style={{ color: "#8fb8ff", textDecoration: "none" }}>Prompts</Link>
           <Link href="/guide" style={{ color: "#8fb8ff", textDecoration: "none" }}>Guide</Link>
         </nav>
       </div>

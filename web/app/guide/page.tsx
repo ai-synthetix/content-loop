@@ -8,7 +8,7 @@ type Tab = "pipeline" | "projects" | "channels";
 const STAGES = [
   { key: "idea", label: "Idea", icon: "💡", hint: "Title + raw brief", caption: "human seeds", bg: "#143054", border: "#2a5a8a", owner: "human", statuses: ["idea"] },
   { key: "brief", label: "Brief", icon: "📋", hint: "audience, intent, claims", caption: "AI scaffolds", bg: "#101f36", border: "#2a3a52", owner: "AI → human", statuses: ["brief_ready"] },
-  { key: "draft", label: "Draft", icon: "✍️", hint: "canonical markdown", caption: "AI drafts (human editable)", bg: "#1e1a08", border: "#4a3d16", owner: "AI", statuses: ["drafting"] },
+  { key: "draft", label: "Draft", icon: "✍️", hint: "canonical markdown", caption: "AI drafts (human editable)", bg: "#1e1a08", border: "#4a3d16", owner: "AI", statuses: ["queued", "drafting"] },
   { key: "review", label: "Review", icon: "👁️", hint: "human gate", caption: "human approves", bg: "#231a0a", border: "#5a3420", owner: "human", statuses: ["review_ready", "changes_requested", "rejected"] },
   { key: "approved", label: "Approved", icon: "✅", hint: "ready to publish", caption: "human decision", bg: "#123825", border: "#2a6b3a", owner: "human", statuses: ["approved", "scheduled"] },
   { key: "publish", label: "Publish", icon: "📡", hint: "per-channel delivery", caption: "adapters per channel", bg: "#0f2a4d", border: "#2a4a7a", owner: "system", statuses: ["publishing", "published", "partially_published", "failed"] },
@@ -19,6 +19,7 @@ const STAGES = [
 const STATUSES = [
   { status: "idea", desc: "Seed — title + raw brief. Entry point.", owner: "human" },
   { status: "brief_ready", desc: "Structured brief (audience, intent, claims).", owner: "AI scaffolds, human edits" },
+  { status: "queued", desc: "Generation queued — waiting for concurrency slot (max 2 parallel).", owner: "system" },
   { status: "drafting", desc: "Canonical markdown being produced.", owner: "AI" },
   { status: "review_ready", desc: "Draft awaiting human gate.", owner: "AI → human" },
   { status: "approved", desc: "Human approved — ready to schedule/publish.", owner: "human" },

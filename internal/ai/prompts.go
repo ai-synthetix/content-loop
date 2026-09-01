@@ -99,6 +99,9 @@ var aiPhrases = []string{
 	"it is important to note",
 }
 
+// AiPhrases exported for API
+var AiPhrases = aiPhrases
+
 var aiPhrasesRe []*regexp.Regexp
 
 func init() {
@@ -169,7 +172,7 @@ func BuildDraftPromptWithPolicy(title, briefJSON, policyJSON string) string {
 				}
 			} else if v, ok := raw["banned_phrases"].([]any); ok {
 				for _, x := range v {
-					if s, ok := x.(string); ok {
+					if s, ok := x.(string); ok && s != "" {
 						banned = append(banned, s)
 					}
 				}

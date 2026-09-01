@@ -229,6 +229,7 @@ func NewRouterWithConfig(cfg Config) http.Handler {
 				r.Delete("/{id}", s.deleteChannel)
 				r.Post("/{id}/test", s.testChannel)
 			})
+			r.Get("/prompts", s.handleListPrompts)
 		})
 	})
 	return r
