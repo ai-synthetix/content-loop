@@ -156,12 +156,24 @@ export default function GuidePage() {
                         }}
                       />
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, height: 110, justifyContent: "center" }}>
+                        <div
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 12,
+                            background: st.bg,
+                            border: `1px solid ${st.border}`,
+                            display: "grid",
+                            placeItems: "center",
+                            fontSize: 16,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {st.icon}
+                        </div>
                         <div style={{ fontSize: 12, fontWeight: 700, color: "#cfe0ff", textAlign: "center" }}>{st.label}</div>
                         <div style={{ fontSize: 10, color: "#8FA0B8", lineHeight: 1.2, minHeight: 24, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.hint}</div>
                         <div style={{ fontSize: 10, color: "#5a6b86", fontWeight: 400, minHeight: 14, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.caption}</div>
-                        <div style={{ fontSize: 9, color: (st.owner || "").includes("human") ? "#6fdc8c" : (st.owner || "") === "AI" ? "#8FA0B8" : "#8b9dff", background: "rgba(255,255,255,0.05)", border: "1px solid #1e2f44", borderRadius: 10, padding: "1px 6px", marginTop: 2, whiteSpace: "nowrap" }}>
-                          {(st.owner || "").includes("human") && (st.owner || "").includes("AI") ? "👤🤖" : (st.owner || "").includes("human") ? "👤" : (st.owner || "") === "AI" ? "🤖" : (st.owner || "").includes("system") ? "⚙️" : "•"} {st.owner}
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -171,24 +183,23 @@ export default function GuidePage() {
             </div>
           </div>
 
-          <details style={{ marginTop: 24 }}>
-            <summary style={{ fontSize: 13, fontWeight: 700, color: "#8FA0B8", cursor: "pointer", userSelect: "none" }}>Statuses — 13 статусов (скрыто, нажми чтобы раскрыть)</summary>
-            <div style={{ marginTop: 10, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, overflow: "hidden", overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 520 }}>
-                <thead>
-                  <tr style={{ textAlign: "left", borderBottom: "1px solid #1e2f44", background: "#0b1420" }}>
-                    <th style={{ padding: "8px 10px" }}></th>
-                    <th style={{ padding: "8px 10px" }}>Status</th>
-                    <th style={{ padding: "8px 10px" }}>Description</th>
-                    <th style={{ padding: "8px 10px" }}>Owner</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {STATUSES.map((r) => {
-                    const m: Record<string, string> = { idea: "💡", brief_ready: "📋", drafting: "✍️", review_ready: "👁️", changes_requested: "👁️", rejected: "👁️", approved: "✅", scheduled: "✅", publishing: "📡", published: "📡", partially_published: "📡", failed: "📡", measuring: "📊", reflected: "💭" };
+          <h2 style={{ fontSize: 16, margin: "24px 0 10px" }}>Statuses</h2>
+          <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, overflow: "hidden", overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 520 }}>
+              <thead>
+                <tr style={{ textAlign: "left", borderBottom: "1px solid #1e2f44", background: "#0b1420" }}>
+                  <th style={{ padding: "8px 10px" }}></th>
+                  <th style={{ padding: "8px 10px" }}>Status</th>
+                  <th style={{ padding: "8px 10px" }}>Description</th>
+                  <th style={{ padding: "8px 10px" }}>Owner</th>
+                </tr>
+              </thead>
+              <tbody>
+                {STATUSES.map((r) => {
+                    const ownerIcon = r.owner.includes("human") && r.owner.includes("AI") ? "👤🤖" : r.owner.includes("human") ? "👤" : r.owner === "AI" ? "🤖" : r.owner.includes("system") ? "⚙️" : "•";
                     return (
                       <tr key={r.status} style={{ borderBottom: "1px solid #1e2f44" }}>
-                        <td style={{ padding: "8px 10px", textAlign: "center", fontSize: 14 }}>{m[r.status] || "•"}</td>
+                        <td style={{ padding: "8px 10px", textAlign: "center", fontSize: 14 }}>{ownerIcon}</td>
                         <td style={{ padding: "8px 10px" }}>
                           <StatusBadge status={r.status} size={11} />
                         </td>
