@@ -108,44 +108,42 @@ export default function GuidePage() {
                 {STAGES.map((st, i) => (
                   <div key={st.key} style={{ display: "flex", alignItems: "flex-start", flex: 1, gap: 0 }}>
                     <div style={{ flex: 1, textAlign: "center", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", height: "100%" }}>
-                      {st.statuses.length > 1 ? (
-                        <div
-                          style={{
-                            background: "rgba(255,255,255,0.04)",
-                            border: `1px solid ${st.border}55`,
-                            borderRadius: 8,
-                            padding: "8px 6px",
-                            height: 110,
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: 6,
-                            justifyContent: "center",
-                            alignItems: "center",
-                            marginBottom: 8,
-                          }}
-                        >
-                          {st.statuses.map((s) => (
-                            <StatusBadge key={s} status={s} size={10} />
-                          ))}
-                        </div>
-                      ) : (
-                        <div
-                          style={{
-                            padding: "6px 0",
-                            height: 110,
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: 6,
-                            justifyContent: "center",
-                            alignItems: "center",
-                            marginBottom: 8,
-                          }}
-                        >
-                          {st.statuses.map((s) => (
-                            <StatusBadge key={s} status={s} size={10} />
-                          ))}
-                        </div>
-                      )}
+                      <div style={{ height: 110, display: "flex", alignItems: "center", justifyContent: "center", width: "100%", marginBottom: 8 }}>
+                        {st.statuses.length > 1 ? (
+                          <div
+                            style={{
+                              background: "rgba(255,255,255,0.04)",
+                              border: `1px solid ${st.border}55`,
+                              borderRadius: 8,
+                              padding: "8px 6px",
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 6,
+                              justifyContent: "center",
+                              alignItems: "center",
+                            }}
+                          >
+                            {st.statuses.map((s) => (
+                              <StatusBadge key={s} status={s} size={10} />
+                            ))}
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              padding: "6px 0",
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 6,
+                              justifyContent: "center",
+                              alignItems: "center",
+                            }}
+                          >
+                            {st.statuses.map((s) => (
+                              <StatusBadge key={s} status={s} size={10} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <div style={{ flex: 1, minHeight: 6 }} />
                       <div
                         style={{
