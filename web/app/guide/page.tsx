@@ -95,19 +95,19 @@ export default function GuidePage() {
           <h2 style={{ fontSize: 16, margin: "10px 0 10px" }}>Pipeline — idea → reflected</h2>
 
           <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 14, padding: "14px 10px 18px", overflowX: "auto" }}>
-            <div style={{ textAlign: "center", marginBottom: 6, marginTop: 4 }}>
+            <div style={{ textAlign: "center", marginBottom: 2, marginTop: 12 }}>
               <span style={{ background: "#0f1620", border: "1px solid #3a2a5a", borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 600, color: "#c4b5fd", letterSpacing: 0.3 }}>Инсайт → новая идея</span>
             </div>
-            <svg viewBox="0 0 980 36" width={980} height={36} style={{ display: "block", marginBottom: 8 }}>
+            <svg viewBox="0 0 980 36" width={980} height={36} style={{ display: "block", marginBottom: -12, transform: "translateY(10px)" }}>
               <defs>
                 <marker id="arrow-guide" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={6} markerHeight={6} orient="auto-start-reverse">
                   <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b5cf6" />
                 </marker>
               </defs>
-              <path d="M 920 32 V 6 H 60 V 32" fill="none" stroke="#8b5cf6" strokeWidth={1} strokeDasharray="4 4" markerEnd="url(#arrow-guide)" />
+              <path d="M 915 32 V 6 H 65 V 32" fill="none" stroke="#8b5cf6" strokeWidth={1} strokeDasharray="4 4" markerEnd="url(#arrow-guide)" />
             </svg>
-            <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 230 }}>
-              <div style={{ display: "flex", alignItems: "stretch", gap: 0, height: 230 }}>
+            <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 260 }}>
+              <div style={{ display: "flex", alignItems: "stretch", gap: 0, height: 260 }}>
                 {STAGES.map((st, i) => (
                   <div key={st.key} style={{ display: "flex", alignItems: "flex-start", flex: 1, gap: 0 }}>
                     <div style={{ flex: 1, textAlign: "center", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", height: "100%" }}>
