@@ -98,13 +98,13 @@ export default function GuidePage() {
             <div style={{ textAlign: "center", marginBottom: 2, marginTop: 12 }}>
               <span style={{ background: "#0f1620", border: "1px solid #3a2a5a", borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 600, color: "#c4b5fd", letterSpacing: 0.3 }}>Инсайт → новая идея</span>
             </div>
-            <svg viewBox="0 0 980 36" width={980} height={36} style={{ display: "block", marginBottom: -12, transform: "translateY(10px)" }}>
+            <svg viewBox="0 0 980 36" width={980} height={36} style={{ display: "block", marginBottom: -2 }}>
               <defs>
                 <marker id="arrow-guide" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={6} markerHeight={6} orient="auto-start-reverse">
                   <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b5cf6" />
                 </marker>
               </defs>
-              <path d="M 915 32 V 6 H 65 V 32" fill="none" stroke="#8b5cf6" strokeWidth={1} strokeDasharray="4 4" markerEnd="url(#arrow-guide)" />
+              <path d="M 940 32 V 6 H 65 V 32" fill="none" stroke="#8b5cf6" strokeWidth={1} strokeDasharray="4 4" markerEnd="url(#arrow-guide)" />
             </svg>
             <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 260 }}>
               <div style={{ display: "flex", alignItems: "stretch", gap: 0, height: 260 }}>
