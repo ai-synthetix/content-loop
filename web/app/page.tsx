@@ -8,7 +8,7 @@ import { PipelineStepper } from "../components/PipelineStepper";
 import { Skeleton, CardSkeleton } from "../components/Skeleton";
 import { GenerationProgress, type Job } from "../components/GenerationStatus";
 
-type Item = { id: string; title?: string; status?: string; slug?: string };
+type Item = { id: string; title?: string; status?: string; slug?: string; project_id?: string; created_at?: string };
 type Project = { id: string; name?: string; slug?: string };
 
 function slugify(s: string) {
@@ -36,6 +36,8 @@ export default function Page() {
   const [slugDirty, setSlugDirty] = useState(false);
   const [brief, setBrief] = useState("");
   const [projectId, setProjectId] = useState("");
+  const [filterProject, setFilterProject] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
   const [submitting, setSubmitting] = useState(false);
   const [formErr, setFormErr] = useState<string | null>(null);
 
@@ -149,10 +151,10 @@ export default function Page() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ fontSize: 22, margin: 0 }}>Review Queue</h1>
-          <p style={{ opacity: 0.7, fontSize: 12, margin: "4px 0 0" }}>GET /api/v1/content-items (owner filtered) — projects linked to channels via Settings → Channels.</p>
+          <h1 style={{ fontSize: 22, margin: 0, display: "flex", alignItems: "center", gap: 10 }}><span style={{ width: 32, height: 32, borderRadius: 10, background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", display: "grid", placeItems: "center", fontSize: 16 }}>🌀</span>Queue</h1>
+          <p style={{ opacity: 0.6, fontSize: 12, margin: "6px 0 0" }}>{items.length} items · pipeline <span style={{ color: "#8FB8FF" }}>idea → brief → draft → review → published → reflected</span></p>
         </div>
         <button
           onClick={() => { setFormErr(null); setShowModal(true); if (projects.length===0) fetchProjects().catch(()=>{}); }}
@@ -160,6 +162,53 @@ export default function Page() {
         >
           + New item
         </button>
+      </div>
+
+      {/* filters */}
+      <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 10, padding: "6px 10px" }}>
+          <span style={{ fontSize: 11, color: "#8FA0B8", fontWeight: 600 }}>Project</span>
+          <select value={filterProject} onChange={e => setFilterProject(e.target.value)} style={{ background: "#0B1420", border: "1px solid #1e2f44", borderRadius: 8, padding: "6px 10px", color: "#eee", fontSize: 12, outline: "none" }}>
+            <option value="all">All projects</option>
+            {projects.map(p => <option key={p.id} value={p.id}>{p.name || p.slug || p.id.slice(0, 8)}</option>)}
+          </select>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 10, padding: "6px 10px" }}>
+          <span style={{ fontSize: 11, color: "#8FA0B8", fontWeight: 600 }}>Status</span>
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ background: "#0B1420", border: "1px solid #1e2f44", borderRadius: 8, padding: "6px 10px", color: "#eee", fontSize: 12, outline: "none" }}>
+            <option value="all">All statuses</option>
+            <option value="idea">idea</option><option value="brief_ready">brief_ready</option><option value="drafting">drafting</option><option value="review_ready">review_ready</option><option value="approved">approved</option><option value="published">published</option><option value="measuring">measuring</option><option value="reflected">reflected</option>
+          </select>
+        </div>
+        {(filterProject !== "all" || filterStatus !== "all") && <button onClick={() => { setFilterProject("all"); setFilterStatus("all"); }} style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#8FB8FF", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}>Reset</button>}
+        <span style={{ fontSize: 11, opacity: 0.45, marginLeft: "auto" }}>{(() => { const f = items.filter(it => (filterProject === "all" || (it as any).project_id === filterProject) && (filterStatus === "all" || it.status === filterStatus)); return `${f.length}/${items.length} shown`; })()}</span>
+      </div>
+
+      {/* mini pipeline overview */}
+      <div style={{ marginTop: 12, background: "linear-gradient(135deg,#0f1620 0%,#111d2e 100%)", border: "1px solid #1e2f44", borderRadius: 12, padding: "10px 14px", display: "flex", gap: 6, alignItems: "center", overflowX: "auto" }}>
+        {[
+          { k: "idea", label: "idea", color: "#3D8DFF" },
+          { k: "brief_ready", label: "brief" },
+          { k: "drafting", label: "draft" },
+          { k: "review_ready", label: "review" },
+          { k: "approved", label: "ok" },
+          { k: "published", label: "published" },
+          { k: "measuring", label: "measure" },
+          { k: "reflected", label: "reflected" },
+        ].map((s, i, arr) => {
+          const count = items.filter(it => (filterProject === "all" || (it as any).project_id === filterProject) && it.status === s.k || (s.k === "brief_ready" && it.status === "brief_ready") || (s.k === "drafting" && it.status === "drafting")).length;
+          // simpler: count by exact status
+          const c = items.filter(it => (filterProject === "all" || (it as any).project_id === filterProject) && it.status === s.k).length;
+          const actual = s.k === "idea" ? items.filter(it => (filterProject === "all" || (it as any).project_id === filterProject) && it.status === "idea").length : c;
+          return (
+            <div key={s.k} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span title={s.k} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: actual > 0 ? "#162a44" : "#0B1420", border: `1px solid ${actual > 0 ? "#2a4a7a" : "#1e2f44"}`, borderRadius: 20, padding: "4px 10px", fontSize: 11, color: actual > 0 ? "#cfe0ff" : "#5a6b86", fontWeight: actual > 0 ? 700 : 400, whiteSpace: "nowrap" }}>
+                {s.label} <span style={{ background: actual > 0 ? "#3D8DFF" : "#1a2636", color: actual > 0 ? "#fff" : "#5a6b86", borderRadius: 10, padding: "1px 6px", fontSize: 10, minWidth: 16, textAlign: "center", display: "inline-block" }}>{actual}</span>
+              </span>
+              {i < arr.length - 1 && <span style={{ color: "#1e2f44" }}>→</span>}
+            </div>
+          );
+        })}
       </div>
 
       {projects.length > 0 && (
@@ -184,21 +233,24 @@ export default function Page() {
         </div>
       ) : (
         <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
-          {items.map((it) => {
+          {items.filter(it => (filterProject === "all" || (it as any).project_id === filterProject) && (filterStatus === "all" || it.status === filterStatus)).map((it) => {
             const job = jobs[it.id] || null;
             // static display only for jobs triggered via Retry on this page — no polling
             const showJob = job && (job.status === "pending" || job.status === "running" || job.status === "failed");
             const isActive = job?.status === "pending" || job?.status === "running";
             return (
-              <Link key={it.id} href={`/items/${it.id}`} style={{ textDecoration: "none", background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 14, display: "block" }}>
+              <Link key={it.id} href={`/items/${it.id}`} style={{ textDecoration: "none", background: "linear-gradient(135deg,#0f1620 0%,#121e2e 100%)", border: "1px solid #1e2f44", borderRadius: 12, padding: 14, display: "block", transition: "border-color .15s" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ color: "#cfe0ff", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.title || it.slug || it.id}</div>
-                    <div style={{ fontSize: 11, color: "#5a6b86", marginTop: 2 }}>{it.id}</div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <span style={{ color: "#cfe0ff", fontWeight: 600, fontSize: 13 }}>{it.title || it.slug || it.id.slice(0, 8)}</span>
+                      {(it as any).project_id && <span style={{ background: "#162a44", border: "1px solid #1e3a5a", color: "#8fb8ff", borderRadius: 20, padding: "2px 8px", fontSize: 10, fontWeight: 600 }}>{projects.find(p=>p.id===(it as any).project_id)?.name || (it as any).project_id.slice(0, 6)}</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#5a6b86", marginTop: 4, display: "flex", gap: 8 }}>{it.slug && <span>/{it.slug}</span>} <span style={{ opacity: 0.4 }}>·</span> <span>{it.id.slice(0, 8)}…</span></div>
                   </div>
                   <StatusBadge status={it.status || ""} size={11} />
                 </div>
-                <div style={{ marginTop: 10 }}>
+                <div style={{ marginTop: 10, background: "#0b111a", borderRadius: 10, padding: "8px 10px", border: "1px solid #0f1f33" }}>
                   <PipelineStepper status={it.status || "idea"} compact />
                 </div>
                 {showJob && (

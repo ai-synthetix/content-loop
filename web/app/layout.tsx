@@ -4,10 +4,10 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { GlobalGenerationBar } from "../components/GlobalGenerationBar";
 
 export const metadata: Metadata = {
-  title: { default: "Content Loop", template: "%s — Content Loop" },
-  description: "Content Loop — editorial pipeline from idea to reflected learnings. Human gates, AI drafts, pluggable channels.",
+  title: { default: "SwipeLoop", template: "%s — SwipeLoop" },
+  description: "SwipeLoop — Tinder for content. Swipe ideas & drafts, publish through pluggable channels.",
   metadataBase: new URL("http://localhost:3000"),
-  openGraph: { title: "Content Loop", description: "Editorial pipeline: idea → brief → draft → review → publish → measure → reflect.", type: "website" },
+  openGraph: { title: "SwipeLoop", description: "Tinder for content: swipe A vs B, like/dislike drafts. Editorial pipeline idea → publish → measure → reflect.", type: "website" },
   robots: { index: true, follow: true },
 };
 

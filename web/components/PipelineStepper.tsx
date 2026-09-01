@@ -30,7 +30,7 @@ function stepIndexForStatus(status: string): number {
 export function PipelineStepper({ status, compact = false }: { status: string; compact?: boolean }) {
   const idx = stepIndexForStatus(status);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 0, overflowX: "auto", padding: "6px 0" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 0, overflowX: "auto", padding: "4px 0", scrollbarWidth: "none" }}>
       {STEPS.map((st, i) => {
         const active = i === idx;
         const done = i < idx;
