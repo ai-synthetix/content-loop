@@ -106,8 +106,8 @@ export default function GuidePage() {
                 Замыкает луп: новая идея из reflected (next_test)
               </text>
             </svg>
-            <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 210 }}>
-              <div style={{ display: "flex", alignItems: "stretch", gap: 0, height: 210 }}>
+            <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 230 }}>
+              <div style={{ display: "flex", alignItems: "stretch", gap: 0, height: 230 }}>
                 {STAGES.map((st, i) => (
                   <div key={st.key} style={{ display: "flex", alignItems: "flex-start", flex: 1, gap: 0 }}>
                     <div style={{ flex: 1, textAlign: "center", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", height: "100%" }}>
@@ -175,8 +175,8 @@ export default function GuidePage() {
                         {st.icon}
                       </div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: "#cfe0ff" }}>{st.label}</div>
-                      <div style={{ fontSize: 10, color: "#8FA0B8", lineHeight: 1.2 }}>{st.hint}</div>
-                      <div style={{ fontSize: 10, color: "#5a6b86", marginTop: 3, fontWeight: 400 }}>{st.caption}</div>
+                      <div style={{ fontSize: 10, color: "#8FA0B8", lineHeight: 1.2, minHeight: 24, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.hint}</div>
+                      <div style={{ fontSize: 10, color: "#5a6b86", marginTop: 2, fontWeight: 400, minHeight: 14, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.caption}</div>
                     </div>
                     {i < STAGES.length - 1 && (
                       <div
