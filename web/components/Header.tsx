@@ -23,6 +23,7 @@ export function Header() {
       <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
         <Link href="/" style={{ color: "#eee", textDecoration: "none" }}><strong>Content Loop</strong></Link>
         <nav style={{ display: "flex", gap: 12, fontSize: 13 }}>
+          <Link href="/dashboard" style={{ color: "#8fb8ff", textDecoration: "none" }}>Dashboard</Link>
           <Link href="/" style={{ color: "#8fb8ff", textDecoration: "none" }}>Queue</Link>
           <Link href="/projects" style={{ color: "#8fb8ff", textDecoration: "none" }}>Projects</Link>
           <Link href="/settings/channels" style={{ color: "#8fb8ff", textDecoration: "none" }}>Channels</Link>

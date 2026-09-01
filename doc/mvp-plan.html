@@ -160,7 +160,7 @@
 </header>
 
 <div class="wrap hero">
-  <div class="eyebrow">Исследование → решение → реализация · 31 августа 2026</div>
+  <div class="eyebrow">Исследование → решение → реализация · 31 августа 2026 · обновление 01 сентября 2026</div>
   <h1>От плана к <em>рабочему MVP</em> за 6–8 недель</h1>
   <p>Отдельный <b style="color:#fff">content control plane</b> с обязательным human approval. FamilyOS — первый адаптер, Telegram — первый канал доставки. Генерация — товарная, ценность — в памяти, аудите и рефлексии.</p>
 
@@ -175,6 +175,25 @@
         <span class="on">idea → brief → draft → review → publish → measure → reflect</span>
         <span>idempotency + audit + outbox</span>
         <span>canonical Markdown</span>
+        <span style="background:rgba(29,181,116,.12); border-color:rgba(29,181,116,.25); color:#B6F0D8">✓ done 01.09.2026</span>
+      </div>
+      <div class="state" style="margin-top:8px">
+        <span style="background:rgba(29,181,116,.15); border-color:rgba(29,181,116,.3); color:#B6F0D8">✓ tables</span>
+        <span style="background:rgba(29,181,116,.15); border-color:rgba(29,181,116,.3); color:#B6F0D8">✓ generation async</span>
+        <span style="background:rgba(29,181,116,.15); border-color:rgba(29,181,116,.3); color:#B6F0D8">✓ channel-aware variants</span>
+        <span style="background:rgba(29,181,116,.15); border-color:rgba(29,181,116,.3); color:#B6F0D8">✓ approve flow</span>
+        <span style="background:rgba(29,181,116,.15); border-color:rgba(29,181,116,.3); color:#B6F0D8">✓ abstract publish + idempotency</span>
+        <span style="background:rgba(29,181,116,.15); border-color:rgba(29,181,116,.3); color:#B6F0D8">✓ real Telegram adapter</span>
+        <span style="background:rgba(29,181,116,.15); border-color:rgba(29,181,116,.3); color:#B6F0D8">✓ metrics manual+auto</span>
+        <span style="background:rgba(29,181,116,.15); border-color:rgba(29,181,116,.3); color:#B6F0D8">✓ reflections</span>
+        <span style="background:rgba(29,181,116,.15); border-color:rgba(29,181,116,.3); color:#B6F0D8">✓ status sync</span>
+      </div>
+      <div class="state" style="margin-top:6px">
+        <span style="background:rgba(245,165,36,.12); border-color:rgba(245,165,36,.3); color:#FFD18A">◐ edits — in progress</span>
+        <span style="background:rgba(245,165,36,.12); border-color:rgba(245,165,36,.3); color:#FFD18A">◐ health (/healthz) — in progress</span>
+        <span style="background:rgba(245,165,36,.12); border-color:rgba(245,165,36,.3); color:#FFD18A">◐ dashboard — in progress</span>
+        <span style="background:var(--panel2); border-color:var(--line); color:var(--dim); text-decoration:line-through">scheduling — deferred</span>
+        <span style="background:var(--panel2); border-color:var(--line); color:var(--dim); text-decoration:line-through">webhooks — not needed</span>
       </div>
     </div>
     <div class="hero-card">
@@ -188,6 +207,46 @@
     </div>
   </div>
 </div>
+
+<section id="status" class="wrap" style="padding:16px 0 8px">
+  <div style="background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px">
+      <h2 style="margin:0; font-size:16px; letter-spacing:-.02em">Статус на 01.09.2026</h2>
+      <span class="badge" style="border-color:rgba(29,181,116,.3); color:#B6F0D8; background:rgba(29,181,116,.1)">MVP core — done · polish — in progress</span>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px">
+      <div style="background:var(--card); border:1px solid rgba(29,181,116,.25); border-radius:12px; padding:12px">
+        <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; font-weight:800; color:var(--green); margin-bottom:8px">✓ DONE</div>
+        <ul style="margin:0; padding-left:16px; font-size:12.5px; color:#CDD7E3; line-height:1.6">
+          <li>таблицы (migrations 001–004, 9+ таблиц)</li>
+          <li>generation async (job + polling, /generate + /generation-status)</li>
+          <li>channel-aware variants (channel_variant per channel)</li>
+          <li>approve flow (approved / rejected / changes_requested → sync)</li>
+          <li>abstract publish + idempotency (idempotency_key, повтор без дубля)</li>
+          <li>real Telegram adapter (Bot API <code>sendMessage</code>, chat_id/message_id/permalink)</li>
+          <li>metrics — manual milestone <code>POST /publications/{id}/metrics</code> + auto <code>FetchMetrics</code></li>
+          <li>reflections (<code>POST/GET /content-items/{id}/reflections</code> + <code>/reflections</code>)</li>
+          <li>status sync (content_item статус → published / measuring / reflected)</li>
+        </ul>
+      </div>
+      <div style="background:var(--card); border:1px solid rgba(245,165,36,.28); border-radius:12px; padding:12px">
+        <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; font-weight:800; color:var(--amber); margin-bottom:8px">◐ IN PROGRESS</div>
+        <ul style="margin:0; padding-left:16px; font-size:12.5px; color:#CDD7E3; line-height:1.6">
+          <li><b>edits</b> — inline правки brief/draft в UI (частично, требуется PATCH /content-items/{id})</li>
+          <li><b>health</b> — <code>GET /healthz</code> есть, но расширенный health (DB + workers) дорабатывается</li>
+          <li><b>dashboard</b> — <code>/dashboard</code> + сводка по публикациям/метрикам в работе</li>
+        </ul>
+      </div>
+      <div style="background:var(--card); border:1px dashed var(--line); border-radius:12px; padding:12px">
+        <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; font-weight:800; color:var(--dim); margin-bottom:8px">— NOT NEEDED</div>
+        <ul style="margin:0; padding-left:16px; font-size:12.5px; color:var(--muted); line-height:1.6">
+          <li><b>scheduling</b> — deferred (cron/отложенная публикация после MVP)</li>
+          <li><b>webhooks</b> — no (опрос/ручной сбор, Telegram webhook не требуется в MVP)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
 
 <section id="stack" class="wrap">
   <div class="sec-head">
@@ -415,7 +474,7 @@ ModelProvider · schema validation до/после LLM</pre>
         <div style="flex:1">
           <h3>Контракт и baseline — 2–3 дня</h3>
           <p>Фиксируем язык системы до первой строки кода</p>
-          <div class="meta"><span>2–3 дня</span><span class="g">Gate: материал ↔ версии ↔ каналы однозначно связаны</span></div>
+          <div class="meta"><span>2–3 дня</span><span class="g">✓ done — tables/schema</span><span class="g">Gate: материал ↔ версии ↔ каналы однозначно связаны</span></div>
         </div>
         <div style="color:var(--dim)">▾</div>
       </div>
@@ -434,14 +493,14 @@ ModelProvider · schema validation до/после LLM</pre>
         <div style="flex:1">
           <h3>Реестр и workflow — 1 неделя</h3>
           <p>Сервис, БД, state machine, outbox, очередь review</p>
-          <div class="meta"><span>1 неделя</span><span class="g">Gate: restart между draft и approval без потери состояния</span></div>
+          <div class="meta"><span>1 неделя</span><span class="g">✓ done — state machine + status sync</span><span class="g">Gate: restart между draft и approval без потери состояния</span></div>
         </div>
         <div style="color:var(--dim)">▾</div>
       </div>
       <div class="phase-body">
         <div class="cols">
           <div><h4>Сделать</h4><ul><li>Сервис + Postgres, миграции, seed проекта PattayaDom</li><li>State machine + API: idea / brief / version / approval</li><li>Immutable versions + audit_events + idempotency keys</li><li>Outbox worker, retry с backoff, простая очередь review</li></ul></div>
-          <div><h4>Не делать</h4><ul><li>Генерацию (этап 2)</li><li>Адаптеры каналов (этапы 3–4)</li><li>SaaS, billing, multi-tenant</li></ul></div>
+          <div><h4>Не делать</h4><ul><li>Генерацию (этап 2)</li><li>Адаптеры каналов (этапы 3–4)</li><li>SaaS, billing, multi-tenant</li><li><span style="color:var(--dim); text-decoration:line-through">scheduling — deferred</span> (cron после MVP, сейчас ручной publish)</li><li><span style="color:var(--dim); text-decoration:line-through">webhooks — not needed</span> (poll/manual metrics)</li></ul></div>
         </div>
         <div class="gate"><b>Gate:</b> сервис переживает рестарт между draft и approval; повторный запрос не плодит сущности.</div>
       </div>
@@ -453,7 +512,7 @@ ModelProvider · schema validation до/после LLM</pre>
         <div style="flex:1">
           <h3>Генерация и проверка — 1 неделя</h3>
           <p>Model gateway, дедупликация, рендеры, deterministic checks</p>
-          <div class="meta"><span>1 неделя</span><span class="g">Gate: 10 брифов проходят pipeline, claim без source виден reviewer</span></div>
+          <div class="meta"><span>1 неделя</span><span class="g">✓ done — generation async + channel-aware variants</span><span class="g">Gate: 10 брифов проходят pipeline, claim без source виден reviewer</span></div>
         </div>
         <div style="color:var(--dim)">▾</div>
       </div>
@@ -471,7 +530,7 @@ ModelProvider · schema validation до/после LLM</pre>
         <div style="flex:1">
           <h3>FamilyOS adapter — 3–4 дня</h3>
           <p>familyos.pattayadom_article · draft → publish · reconcile</p>
-          <div class="meta"><span>3–4 дня</span><span class="g">Gate: повторный publish не создаёт дубль</span></div>
+          <div class="meta"><span>3–4 дня</span><span class="g">✓ done — abstract publish + idempotency + approve flow</span><span class="g">Gate: повторный publish не создаёт дубль</span></div>
         </div>
         <div style="color:var(--dim)">▾</div>
       </div>
@@ -489,7 +548,7 @@ ModelProvider · schema validation до/после LLM</pre>
         <div style="flex:1">
           <h3>Telegram adapter — 3–4 дня</h3>
           <p>Публикация, permalink, reactions, UTM, reconcile</p>
-          <div class="meta"><span>3–4 дня</span><span class="g">Gate: один idempotency key = одно сообщение</span></div>
+          <div class="meta"><span>3–4 дня</span><span class="g">✓ done — real Telegram Bot API (sendMessage)</span><span class="g">Gate: один idempotency key = одно сообщение</span></div>
         </div>
         <div style="color:var(--dim)">▾</div>
       </div>
@@ -507,7 +566,7 @@ ModelProvider · schema validation до/после LLM</pre>
         <div style="flex:1">
           <h3>Рефлексия — 1 неделя</h3>
           <p>Snapshots, нормализация, weekly reflection → следующий brief</p>
-          <div class="meta"><span>1 неделя</span><span class="g">Gate: для каждого совета можно открыть исходные метрики</span></div>
+          <div class="meta"><span>1 неделя</span><span class="g">✓ done — metrics manual+auto + reflections</span><span class="g">Gate: для каждого совета можно открыть исходные метрики</span></div>
         </div>
         <div style="color:var(--dim)">▾</div>
       </div>
@@ -525,7 +584,7 @@ ModelProvider · schema validation до/после LLM</pre>
         <div style="flex:1">
           <h3>Пилот — 2 недели</h3>
           <p>8–12 материалов, 2 темы, 2 формата, weekly reflection</p>
-          <div class="meta"><span>2 недели</span><span class="g">Gate: решение — продолжать / упростить / остановить</span></div>
+          <div class="meta"><span>2 недели</span><span style="background:rgba(245,165,36,.12); border-color:rgba(245,165,36,.3); color:#FFD18A; font-size:11px; font-weight:700; padding:4px 8px; border-radius:999px; border-style:solid; border-width:1px">◐ in progress — dashboard/health/edits</span><span class="g">Gate: решение — продолжать / упростить / остановить</span></div>
         </div>
         <div style="color:var(--dim)">▾</div>
       </div>
@@ -597,8 +656,8 @@ ModelProvider · schema validation до/после LLM</pre>
 
 <footer class="wrap footer">
   <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap">
-    <span>Content Loop · MVP plan · сгенерировано 31.08.2026 · на основе <code>decision-memo.md</code> / <code>architecture.md</code> / <code>implementation-plan.md</code></span>
-    <span>Следующий шаг: <span class="kbd">Этап 0</span> — 2–3 дня</span>
+    <span>Content Loop · MVP plan · сгенерировано 31.08.2026 · обновлено 01.09.2026 · на основе <code>decision-memo.md</code> / <code>architecture.md</code> / <code>implementation-plan.md</code></span>
+    <span>Статус: <span style="color:var(--green)">9 done</span> · <span style="color:var(--amber)">3 in progress</span> · <span style="color:var(--dim)">2 not needed</span></span>
   </div>
 </footer>
 

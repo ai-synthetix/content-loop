@@ -58,6 +58,13 @@ func main() {
 		AI:             ai.NewFromEnv(),
 	})
 
+	// background scheduler: ticker 5m, auto-collect metrics at 3h/24h/168h after published_at if no milestone snapshot exists
+	if st != nil && st.DB != nil {
+		sched := &httpapi.Server{Store: st}
+		go sched.StartMetricsScheduler(context.Background())
+		log.Printf("metrics scheduler started (5m ticker, milestones 3h/24h/7d)")
+	}
+
 	srv := &http.Server{
 		Addr:         ":" + port,
 		Handler:      handler,

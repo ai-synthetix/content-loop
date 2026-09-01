@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"time"
 
 	"github.com/ai-synthetix/content-loop/internal/store"
@@ -103,8 +104,33 @@ func (a *telegramStub) Unpublish(_ context.Context, _ string) error { return nil
 func (a *telegramStub) FetchPublication(_ context.Context, externalID string) (*PublicationResult, error) {
 	return &PublicationResult{ExternalID: externalID, Status: "published"}, nil
 }
-func (a *telegramStub) FetchMetrics(_ context.Context, _ string, _ *time.Time) (*Metrics, error) {
-	return &Metrics{CapturedAt: time.Now(), Reactions: map[string]int64{}}, nil
+func (a *telegramStub) FetchMetrics(_ context.Context, externalID string, _ *time.Time) (*Metrics, error) {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(externalID))
+	if externalID == "" {
+		_, _ = h.Write([]byte(a.token + a.channelID))
+	}
+	hashVal := h.Sum32()
+	// synthetic views: 50-2000 range, deterministic per externalID + time jitter for demo
+	base := int64(120 + hashVal%800)
+	jitter := int64(time.Now().UnixNano()/1e9%50) // small time variance
+	views := base + jitter
+	if views < 10 {
+		views = 10
+	}
+	reactions := map[string]int64{
+		"like":    views / 12,
+		"fire":    views / 25,
+		"heart":   views / 30,
+	}
+	comments := int64(views / 40)
+	return &Metrics{
+		Views:     &views,
+		Reactions: reactions,
+		Comments:  &comments,
+		Extra:     map[string]any{},
+		CapturedAt: time.Now(),
+	}, nil
 }
 
 type familyosStub struct {

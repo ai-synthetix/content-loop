@@ -224,33 +224,115 @@ func (s *Server) testChannel(w http.ResponseWriter, r *http.Request) {
 		token := ""
 		for _, k := range []string{"bot_token", "botToken", "token"} {
 			if v, ok := ch.Config[k]; ok {
-				token = fmt.Sprintf("%v", v)
-				break
+				s := strings.TrimSpace(fmt.Sprintf("%v", v))
+				if s != "" {
+					token = s
+					break
+				}
 			}
 		}
 		if token == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "telegram bot_token missing"})
+			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "telegram bot_token missing"})
 			return
 		}
-		url := fmt.Sprintf("https://api.telegram.org/bot%s/getMe", token)
-		client := &http.Client{Timeout: 10 * time.Second}
-		req, _ := http.NewRequestWithContext(r.Context(), "GET", url, nil)
+		client := &http.Client{Timeout: 5 * time.Second}
+		// getMe
+		getMeURL := fmt.Sprintf("https://api.telegram.org/bot%s/getMe", token)
+		req, _ := http.NewRequestWithContext(r.Context(), http.MethodGet, getMeURL, nil)
 		resp, err := client.Do(req)
 		if err != nil {
 			result["error"] = err.Error()
 			writeJSON(w, http.StatusOK, result)
 			return
 		}
-		defer resp.Body.Close()
 		body, _ := io.ReadAll(resp.Body)
-		var tgResp map[string]any
+		resp.Body.Close()
+		var tgResp struct {
+			Ok          bool `json:"ok"`
+			Description string `json:"description"`
+			Result      struct {
+				Username string `json:"username"`
+				Title    string `json:"title"`
+			} `json:"result"`
+		}
 		_ = json.Unmarshal(body, &tgResp)
-		okVal, _ := tgResp["ok"].(bool)
-		result["ok"] = okVal && resp.StatusCode == 200
-		result["status"] = resp.StatusCode
-		result["response"] = tgResp
-		if !okVal {
-			result["error"] = fmt.Sprintf("telegram getMe failed: %s", string(body))
+		if !tgResp.Ok || resp.StatusCode != 200 {
+			msg := tgResp.Description
+			if msg == "" {
+				msg = strings.TrimSpace(string(body))
+				if msg == "" {
+					msg = fmt.Sprintf("getMe failed status %d", resp.StatusCode)
+				}
+			}
+			result["error"] = msg
+			result["status"] = resp.StatusCode
+			writeJSON(w, http.StatusOK, result)
+			return
+		}
+		result["ok"] = true
+		result["bot_username"] = tgResp.Result.Username
+		// getChat if channel_id provided
+		channelID := ""
+		for _, k := range []string{"channel_id", "channelId", "chat_id", "chatId", "channel", "chat"} {
+			if v, ok := ch.Config[k]; ok {
+				s := strings.TrimSpace(fmt.Sprintf("%v", v))
+				if s != "" {
+					channelID = s
+					break
+				}
+			}
+		}
+		if channelID != "" {
+			// Telegram getChat requires chat_id query param
+			// Use QueryEscape to handle @channel or numeric id
+			chatURL := fmt.Sprintf("https://api.telegram.org/bot%s/getChat?chat_id=%s", token, strings.TrimSpace(channelID))
+			// ensure proper escaping: replace already escaped? use simple escape for @ and numbers is safe
+			// Re-encode via url.QueryEscape if not already
+			if strings.Contains(chatURL, "@") {
+				// manually escape @
+				chatURL = fmt.Sprintf("https://api.telegram.org/bot%s/getChat?chat_id=%s", token, jsonEscapeQuery(channelID))
+			}
+			req2, _ := http.NewRequestWithContext(r.Context(), http.MethodGet, chatURL, nil)
+			resp2, err := client.Do(req2)
+			if err != nil {
+				result["ok"] = false
+				result["error"] = fmt.Sprintf("getChat error: %v", err)
+				writeJSON(w, http.StatusOK, result)
+				return
+			}
+			body2, _ := io.ReadAll(resp2.Body)
+			resp2.Body.Close()
+			var chatResp struct {
+				Ok          bool `json:"ok"`
+				Description string `json:"description"`
+				Result      struct {
+					Title    string `json:"title"`
+					Username string `json:"username"`
+				} `json:"result"`
+			}
+			_ = json.Unmarshal(body2, &chatResp)
+			if !chatResp.Ok || resp2.StatusCode != 200 {
+				msg := chatResp.Description
+				if msg == "" {
+					msg = strings.TrimSpace(string(body2))
+					if msg == "" {
+						msg = fmt.Sprintf("getChat failed status %d", resp2.StatusCode)
+					}
+				}
+				result["ok"] = false
+				result["error"] = msg
+				writeJSON(w, http.StatusOK, result)
+				return
+			}
+			title := chatResp.Result.Title
+			if title == "" {
+				title = chatResp.Result.Username
+			}
+			result["chat_title"] = title
+			if title == "" {
+				// fallback raw
+				result["chat_title"] = channelID
+			}
 		}
 		writeJSON(w, http.StatusOK, result)
 		return
@@ -258,22 +340,26 @@ func (s *Server) testChannel(w http.ResponseWriter, r *http.Request) {
 		baseURL := ""
 		for _, k := range []string{"base_url", "baseUrl", "url", "endpoint"} {
 			if v, ok := ch.Config[k]; ok {
-				baseURL = fmt.Sprintf("%v", v)
-				break
+				s := strings.TrimSpace(fmt.Sprintf("%v", v))
+				if s != "" {
+					baseURL = s
+					break
+				}
 			}
 		}
 		if baseURL == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "base_url missing"})
+			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "base_url missing"})
 			return
 		}
 		baseURL = strings.TrimRight(baseURL, "/")
-		client := &http.Client{Timeout: 10 * time.Second}
-		req, _ := http.NewRequestWithContext(r.Context(), "GET", baseURL, nil)
-		if key, ok := ch.Config["api_key"]; ok {
+		client := &http.Client{Timeout: 5 * time.Second}
+		req, _ := http.NewRequestWithContext(r.Context(), http.MethodGet, baseURL, nil)
+		if key, ok := ch.Config["api_key"]; ok && fmt.Sprintf("%v", key) != "" {
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", key))
 			req.Header.Set("X-API-Key", fmt.Sprintf("%v", key))
-		} else if key, ok := ch.Config["apiKey"]; ok {
+		} else if key, ok := ch.Config["apiKey"]; ok && fmt.Sprintf("%v", key) != "" {
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", key))
+			req.Header.Set("X-API-Key", fmt.Sprintf("%v", key))
 		}
 		resp, err := client.Do(req)
 		if err != nil {
@@ -282,19 +368,33 @@ func (s *Server) testChannel(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer resp.Body.Close()
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		result["ok"] = resp.StatusCode < 400
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		result["status"] = resp.StatusCode
-		result["body_snippet"] = string(body)
-		if resp.StatusCode >= 400 {
+		if resp.StatusCode < 400 {
+			result["ok"] = true
+			if len(body) > 0 {
+				result["body_snippet"] = string(body)
+			}
+		} else {
+			result["ok"] = false
 			result["error"] = fmt.Sprintf("GET %s -> %d", baseURL, resp.StatusCode)
+			if len(body) > 0 {
+				result["body_snippet"] = string(body)
+			}
 		}
 		writeJSON(w, http.StatusOK, result)
 		return
 	default:
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unknown channel type"})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "unknown channel type: " + ch.Type})
 		return
 	}
+}
+
+func jsonEscapeQuery(s string) string {
+	// minimal escape for telegram chat_id: @ -> %40
+	r := strings.ReplaceAll(s, "@", "%40")
+	r = strings.ReplaceAll(r, " ", "%20")
+	return r
 }
 
 // helpers

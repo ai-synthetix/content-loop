@@ -26,7 +26,7 @@ export default function ChannelsPage() {
   const [formProjectId, setFormProjectId] = useState("");
   const [formCfg, setFormCfg] = useState("");
   const [testingId, setTestingId] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<Record<string, any> | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, any>>({});
 
   async function load() {
     setLoading(true);
@@ -75,12 +75,13 @@ export default function ChannelsPage() {
   }
 
   async function handleTest(id: string) {
-    setTestingId(id); setTestResult(null);
+    setTestingId(id);
+    setTestResults(prev => { const n = { ...prev }; delete n[id]; return n; });
     try {
       const r = await fetch(apiUrl(`/api/v1/channels/${id}/test`), { method: "POST", headers: { ...authHeaders() } });
       const d = await r.json();
-      setTestResult({ id, ...d });
-    } catch (e: any) { setTestResult({ id, error: e.message, ok: false }); }
+      setTestResults(prev => ({ ...prev, [id]: { id, ...d } }));
+    } catch (e: any) { setTestResults(prev => ({ ...prev, [id]: { id, error: e.message, ok: false } })); }
     finally { setTestingId(null); }
   }
 
@@ -130,8 +131,11 @@ export default function ChannelsPage() {
 
       {channels.length === 0 ? <p style={{ opacity: 0.6, fontSize: 13 }}>No channels yet. Add Telegram or FamilyOS above.</p> : (
         <div style={{ display: "grid", gap: 12 }}>
-          {channels.map(c => (
-            <div key={c.id} style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 14, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+          {channels.map(c => {
+            const tr = testResults[c.id];
+            return (
+            <div key={c.id} style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 14, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexDirection: "column" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, width: "100%", alignItems: "flex-start" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <strong>{c.name}</strong>
@@ -146,14 +150,26 @@ export default function ChannelsPage() {
                 <button onClick={() => handleTest(c.id)} disabled={testingId === c.id} style={{ ...btn, opacity: testingId === c.id ? 0.6 : 1, minWidth: 90 }}>{testingId === c.id ? "Testing…" : "Test"}</button>
                 <button onClick={() => handleDelete(c.id)} style={{ ...btn, borderColor: "#5a2a2a", color: "#ff8a8a" }}>Delete</button>
               </div>
+              </div>
+              {tr && (
+                <div style={{ width: "100%", background: tr.ok ? "rgba(60,180,90,.12)" : "rgba(255,90,60,.12)", border: `1px solid ${tr.ok ? "rgba(60,180,90,.35)" : "rgba(255,90,60,.35)"}`, borderRadius: 8, padding: "8px 10px", marginTop: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: tr.ok ? "#6fdc8c" : "#ff8a8a", marginBottom: 4 }}>{tr.ok ? "✓ ok" : "✗ failed"}{tr.bot_username ? ` — @${tr.bot_username}` : ""}{tr.chat_title ? ` — ${tr.chat_title}` : ""}{tr.error ? ` — ${tr.error}` : ""}</div>
+                  <pre style={{ fontSize: 11, overflow: "auto", margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", color: tr.ok ? "#b6e8c2" : "#ffb3a8" }}>{JSON.stringify(tr, null, 2)}</pre>
+                </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
-      {testResult && (
-        <div style={{ marginTop: 16, background: testResult.ok ? "rgba(60,180,90,.12)" : "rgba(255,90,60,.12)", border: `1px solid ${testResult.ok ? "rgba(60,180,90,.3)" : "rgba(255,90,60,.3)"}`, borderRadius: 10, padding: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Test result for {testResult.id.slice(0, 8)}… {testResult.ok ? "✓ ok" : "✗ failed"}</div>
-          <pre style={{ fontSize: 11, overflow: "auto", margin: 0 }}>{JSON.stringify(testResult, null, 2)}</pre>
+      {Object.keys(testResults).length > 0 && (
+        <div style={{ marginTop: 16, display: "grid", gap: 8 }}>
+          {Object.entries(testResults).map(([id, tr]: any) => (
+            <div key={id} style={{ background: tr.ok ? "rgba(60,180,90,.12)" : "rgba(255,90,60,.12)", border: `1px solid ${tr.ok ? "rgba(60,180,90,.3)" : "rgba(255,90,60,.3)"}`, borderRadius: 10, padding: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: tr.ok ? "#6fdc8c" : "#ff8a8a" }}>Test result for {id.slice(0, 8)}… {tr.ok ? "✓ ok" : "✗ failed"}{tr.bot_username ? ` @${tr.bot_username}` : ""}{tr.chat_title ? ` — ${tr.chat_title}` : ""}</div>
+              <pre style={{ fontSize: 11, overflow: "auto", margin: 0 }}>{JSON.stringify(tr, null, 2)}</pre>
+            </div>
+          ))}
         </div>
       )}
     </div>

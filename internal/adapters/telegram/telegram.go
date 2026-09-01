@@ -46,8 +46,14 @@ func (a *Adapter) FetchPublication(_ context.Context, externalID string) (*adapt
 	return &adapters.PublicationResult{ExternalID: externalID, Status: "published"}, nil
 }
 
-func (a *Adapter) FetchMetrics(_ context.Context, _ string, _ *time.Time) (*adapters.Metrics, error) {
-	return &adapters.Metrics{CapturedAt: time.Now(), Reactions: map[string]int64{}}, nil
+func (a *Adapter) FetchMetrics(_ context.Context, externalID string, _ *time.Time) (*adapters.Metrics, error) {
+	views := int64(150 + len(externalID)*37%700 + int(time.Now().Unix()%100))
+	if views < 10 {
+		views = 150
+	}
+	reactions := map[string]int64{"like": views / 10}
+	comments := int64(views / 40)
+	return &adapters.Metrics{Views: &views, Reactions: reactions, Comments: &comments, Extra: map[string]any{}, CapturedAt: time.Now()}, nil
 }
 
 var _ adapters.Publisher = (*Adapter)(nil)
