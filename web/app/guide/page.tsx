@@ -6,14 +6,14 @@ import { StatusBadge } from "../../components/StatusBadge";
 type Tab = "pipeline" | "projects" | "channels";
 
 const STAGES = [
-  { key: "idea", label: "Idea", icon: "💡", hint: "Title + raw brief", caption: "human seeds", bg: "#143054", border: "#2a5a8a", statuses: ["idea"] },
-  { key: "brief", label: "Brief", icon: "📋", hint: "audience, intent, claims", caption: "AI scaffolds", bg: "#101f36", border: "#2a3a52", statuses: ["brief_ready"] },
-  { key: "draft", label: "Draft", icon: "✍️", hint: "canonical markdown", caption: "AI drafts (human editable)", bg: "#1e1a08", border: "#4a3d16", statuses: ["drafting"] },
-  { key: "review", label: "Review", icon: "👁️", hint: "human gate", caption: "human approves", bg: "#231a0a", border: "#5a3420", statuses: ["review_ready", "changes_requested", "rejected"] },
-  { key: "approved", label: "Approved", icon: "✅", hint: "ready to publish", caption: "human decision", bg: "#123825", border: "#2a6b3a", statuses: ["approved", "scheduled"] },
-  { key: "publish", label: "Publish", icon: "📡", hint: "per-channel delivery", caption: "adapters per channel", bg: "#0f2a4d", border: "#2a4a7a", statuses: ["publishing", "published", "partially_published", "failed"] },
-  { key: "measuring", label: "Measuring", icon: "📊", hint: "views, reactions", caption: "auto + manual", bg: "#2e1e08", border: "#6b3d16", statuses: ["measuring"] },
-  { key: "reflected", label: "Reflected", icon: "💭", hint: "learnings → next test", caption: "LLM hypotheses / human", bg: "#1a1633", border: "#3a2a5a", statuses: ["reflected"] },
+  { key: "idea", label: "Idea", icon: "💡", hint: "Title + raw brief", caption: "human seeds", bg: "#143054", border: "#2a5a8a", owner: "human", statuses: ["idea"] },
+  { key: "brief", label: "Brief", icon: "📋", hint: "audience, intent, claims", caption: "AI scaffolds", bg: "#101f36", border: "#2a3a52", owner: "AI → human", statuses: ["brief_ready"] },
+  { key: "draft", label: "Draft", icon: "✍️", hint: "canonical markdown", caption: "AI drafts (human editable)", bg: "#1e1a08", border: "#4a3d16", owner: "AI", statuses: ["drafting"] },
+  { key: "review", label: "Review", icon: "👁️", hint: "human gate", caption: "human approves", bg: "#231a0a", border: "#5a3420", owner: "human", statuses: ["review_ready", "changes_requested", "rejected"] },
+  { key: "approved", label: "Approved", icon: "✅", hint: "ready to publish", caption: "human decision", bg: "#123825", border: "#2a6b3a", owner: "human", statuses: ["approved", "scheduled"] },
+  { key: "publish", label: "Publish", icon: "📡", hint: "per-channel delivery", caption: "adapters per channel", bg: "#0f2a4d", border: "#2a4a7a", owner: "system", statuses: ["publishing", "published", "partially_published", "failed"] },
+  { key: "measuring", label: "Measuring", icon: "📊", hint: "views, reactions", caption: "auto + manual", bg: "#2e1e08", border: "#6b3d16", owner: "system + human", statuses: ["measuring"] },
+  { key: "reflected", label: "Reflected", icon: "💭", hint: "learnings → next test", caption: "LLM hypotheses / human", bg: "#1a1633", border: "#3a2a5a", owner: "human + AI", statuses: ["reflected"] },
 ] as const;
 
 const STATUSES = [
@@ -174,8 +174,8 @@ export default function GuidePage() {
                         <div style={{ fontSize: 12, fontWeight: 700, color: "#cfe0ff", textAlign: "center" }}>{st.label}</div>
                         <div style={{ fontSize: 10, color: "#8FA0B8", lineHeight: 1.2, minHeight: 24, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.hint}</div>
                         <div style={{ fontSize: 10, color: "#5a6b86", fontWeight: 400, minHeight: 14, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.caption}</div>
-                        <div style={{ fontSize: 9, color: st.owner.includes("human") ? "#6fdc8c" : st.owner === "AI" ? "#8FA0B8" : "#8b9dff", background: "rgba(255,255,255,0.05)", border: "1px solid #1e2f44", borderRadius: 10, padding: "1px 6px", marginTop: 2, whiteSpace: "nowrap" }}>
-                          {st.owner.includes("human") && st.owner.includes("AI") ? "👤🤖" : st.owner.includes("human") ? "👤" : st.owner === "AI" ? "🤖" : st.owner.includes("system") ? "⚙️" : "•"} {st.owner}
+                        <div style={{ fontSize: 9, color: (st.owner || "").includes("human") ? "#6fdc8c" : (st.owner || "") === "AI" ? "#8FA0B8" : "#8b9dff", background: "rgba(255,255,255,0.05)", border: "1px solid #1e2f44", borderRadius: 10, padding: "1px 6px", marginTop: 2, whiteSpace: "nowrap" }}>
+                          {(st.owner || "").includes("human") && (st.owner || "").includes("AI") ? "👤🤖" : (st.owner || "").includes("human") ? "👤" : (st.owner || "") === "AI" ? "🤖" : (st.owner || "").includes("system") ? "⚙️" : "•"} {st.owner}
                         </div>
                       </div>
                     </div>
