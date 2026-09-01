@@ -103,6 +103,7 @@ export default function GuidePage() {
               <div style={{ position: "absolute", left: "5.5%", top: 22, width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: "8px solid #8b5cf6", marginLeft: -6 }} />
             </div>
             <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 260 }}>
+              <div style={{ position: "absolute", left: 22, right: 22, top: 148, height: 1, background: "#4a3a7a", opacity: 0.9 }} />
               <div style={{ display: "flex", alignItems: "stretch", gap: 0, height: 260 }}>
                 {STAGES.map((st, i) => (
                   <div key={st.key} style={{ display: "flex", alignItems: "flex-start", flex: 1, gap: 0 }}>
@@ -176,19 +177,6 @@ export default function GuidePage() {
                         <div style={{ fontSize: 10, color: "#5a6b86", fontWeight: 400, minHeight: 14, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.caption}</div>
                       </div>
                     </div>
-                    {i < STAGES.length - 1 && (
-                      <div
-                        style={{
-                          width: 10,
-                          height: 1,
-                          background: "#2a3a52",
-                          flexShrink: 0,
-                          marginTop: 56,
-                          marginLeft: 1,
-                          marginRight: 1,
-                        }}
-                      />
-                    )}
                   </div>
                 ))}
               </div>
