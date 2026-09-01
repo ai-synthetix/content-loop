@@ -98,9 +98,9 @@ export default function GuidePage() {
             <div style={{ position: "relative", height: 28, marginTop: 12, marginBottom: -2, minWidth: 980 }}>
               <div style={{ position: "absolute", left: "50%", top: -7, transform: "translateX(-50%)", fontSize: 11, fontWeight: 600, color: "#c4b5fd", zIndex: 1, whiteSpace: "nowrap" }}>Инсайт → новая идея</div>
               <div style={{ position: "absolute", left: "5.5%", right: "6.5%", top: 8, height: 1, background: "#8b5cf6" }} />
-              <div style={{ position: "absolute", left: "5.5%", top: 8, width: 1, height: 14, background: "#8b5cf6" }} />
-              <div style={{ position: "absolute", right: "6.5%", top: 8, width: 1, height: 14, background: "#8b5cf6" }} />
-              <div style={{ position: "absolute", left: "5.5%", top: 22, width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: "8px solid #8b5cf6", marginLeft: -6 }} />
+              <div style={{ position: "absolute", left: "5.5%", top: 8, width: 1, height: 24, background: "#8b5cf6" }} />
+              <div style={{ position: "absolute", right: "6.5%", top: 8, width: 1, height: 24, background: "#8b5cf6" }} />
+              <div style={{ position: "absolute", left: "5.5%", top: 32, width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: "8px solid #8b5cf6", marginLeft: -6 }} />
             </div>
             <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 260 }}>
               <div style={{ position: "absolute", left: "50px", right: "50px", top: "59px", height: "1px", background: "#4a3a7a", opacity: 0.9, pointerEvents: "none" }} />
@@ -148,10 +148,11 @@ export default function GuidePage() {
                       <div
                         style={{
                           width: 1,
-                          height: 12,
+                          height: 32,
                           background: "#2a3a52",
                           opacity: 0.6,
                           marginBottom: 6,
+                          marginTop: -16,
                         }}
                       />
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, height: 110, justifyContent: "center" }}>
