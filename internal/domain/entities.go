@@ -147,6 +147,7 @@ type Reflection struct {
 type Source struct {
 	ID          string     `db:"id" json:"id"`
 	OwnerUserID *string    `db:"owner_user_id" json:"owner_user_id"`
+	ProjectID   *string    `db:"project_id" json:"project_id"`
 	URL         string     `db:"url" json:"url"`
 	Title      *string    `db:"title" json:"title"`
 	CheckedAt  *time.Time `db:"checked_at" json:"checked_at"`

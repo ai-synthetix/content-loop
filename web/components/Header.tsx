@@ -21,7 +21,7 @@ export function Header() {
   return (
     <header style={{ padding: "12px 20px", borderBottom: "1px solid #222", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
       <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
-        <Link href="/" style={{ color: "#eee", textDecoration: "none" }}><strong>Content Loop</strong></Link>
+        <Link href="/" style={{ color: "#eee", textDecoration: "none" }}><strong>SwipeLoop</strong> <span style={{ opacity: 0.5, fontWeight: 400, fontSize: 12, marginLeft: 6 }}>Content Loop</span></Link>
         <nav style={{ display: "flex", gap: 12, fontSize: 13 }}>
           <Link href="/dashboard" style={{ color: "#8fb8ff", textDecoration: "none" }}>Dashboard</Link>
           <Link href="/" style={{ color: "#8fb8ff", textDecoration: "none" }}>Queue</Link>

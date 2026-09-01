@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -91,6 +92,7 @@ type Server struct {
 	publications    map[string]map[string]any
 	metricSnapshots map[string]map[string]any
 	reflections     map[string]map[string]any
+	sources         map[string]map[string]any
 
 	Store          *store.Store
 	JWTSecret      string
@@ -127,6 +129,7 @@ func NewRouterWithConfig(cfg Config) http.Handler {
 		publications:    make(map[string]map[string]any),
 		metricSnapshots: make(map[string]map[string]any),
 		reflections:     make(map[string]map[string]any),
+		sources:         make(map[string]map[string]any),
 		Store:          cfg.Store,
 		JWTSecret:      cfg.JWTSecret,
 		GoogleClientID: cfg.GoogleClientID,
@@ -178,6 +181,11 @@ func NewRouterWithConfig(cfg Config) http.Handler {
 				r.Get("/{id}", s.getProject)
 				r.Patch("/{id}", s.updateProject)
 				r.Delete("/{id}", s.deleteProject)
+				r.Route("/{id}/sources", func(r chi.Router) {
+					r.Get("/", s.listProjectSources)
+					r.Post("/", s.createProjectSource)
+					r.Delete("/{sourceId}", s.deleteProjectSource)
+				})
 			})
 			r.Route("/content-items", func(r chi.Router) {
 				r.Get("/", s.listContentItems)
@@ -596,6 +604,224 @@ func (s *Server) deleteProject(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	delete(s.projects, id)
 	s.mu.Unlock()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// --- project sources ---
+
+func (s *Server) listProjectSources(w http.ResponseWriter, r *http.Request) {
+	projectID := chi.URLParam(r, "id")
+	owner := ownerID(r)
+	if s.useDB() {
+		if _, err := s.Store.Get("project", projectID, owner); err != nil {
+			if err == sql.ErrNoRows {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "project not found"})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		// query sources filtered by project_id and owner
+		rows, err := s.Store.DB.Queryx(`SELECT * FROM `+"`source`"+` WHERE owner_user_id=? AND project_id=? ORDER BY created_at DESC`, owner, projectID)
+		if err != nil {
+			// fallback to List+filter if project_id column missing (pre-migration)
+			items, lerr := s.Store.List("source", owner)
+			if lerr != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			var filtered []map[string]any
+			for _, it := range items {
+				if fmt.Sprintf("%v", it["project_id"]) == projectID {
+					filtered = append(filtered, it)
+				}
+			}
+			if filtered == nil {
+				filtered = []map[string]any{}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"items": filtered})
+			return
+		}
+		defer rows.Close()
+		items := []map[string]any{}
+		for rows.Next() {
+			m := map[string]any{}
+			if err := rows.MapScan(m); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			for k, v := range m {
+				if b, ok := v.([]byte); ok {
+					m[k] = string(b)
+				}
+			}
+			items = append(items, m)
+		}
+		if items == nil {
+			items = []map[string]any{}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+		return
+	}
+	// in-memory fallback
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.projects[projectID]; !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "project not found"})
+		return
+	}
+	var out []map[string]any
+	for _, v := range s.sources {
+		if fmt.Sprintf("%v", v["project_id"]) == projectID {
+			if owner != "" {
+				if oid := fmt.Sprintf("%v", v["owner_user_id"]); oid != "" && oid != owner {
+					continue
+				}
+			}
+			out = append(out, v)
+		}
+	}
+	if out == nil {
+		out = []map[string]any{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": out})
+}
+
+func (s *Server) createProjectSource(w http.ResponseWriter, r *http.Request) {
+	projectID := chi.URLParam(r, "id")
+	owner := ownerID(r)
+	if s.useDB() {
+		if _, err := s.Store.Get("project", projectID, owner); err != nil {
+			if err == sql.ErrNoRows {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "project not found"})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+	}
+	var body map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+		return
+	}
+	if body == nil {
+		body = map[string]any{}
+	}
+	rawURL, _ := body["url"].(string)
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "url is required"})
+		return
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid url, must be http(s)://..."})
+		return
+	}
+	titleRaw, _ := body["title"].(string)
+	titleRaw = strings.TrimSpace(titleRaw)
+	var titleAny any
+	if titleRaw != "" {
+		titleAny = titleRaw
+	}
+	id := uuid.NewString()
+	row := map[string]any{
+		"id":            id,
+		"url":           rawURL,
+		"project_id":    projectID,
+		"owner_user_id": owner,
+	}
+	if titleAny != nil {
+		row["title"] = titleAny
+	}
+	if s.useDB() {
+		if err := s.Store.Insert("source", row); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		if v, err := s.Store.Get("source", id, owner); err == nil {
+			writeJSON(w, http.StatusCreated, v)
+			return
+		}
+		writeJSON(w, http.StatusCreated, row)
+		return
+	}
+	s.mu.Lock()
+	if _, ok := s.projects[projectID]; !ok {
+		s.mu.Unlock()
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "project not found"})
+		return
+	}
+	s.sources[id] = row
+	s.mu.Unlock()
+	writeJSON(w, http.StatusCreated, row)
+}
+
+func (s *Server) deleteProjectSource(w http.ResponseWriter, r *http.Request) {
+	projectID := chi.URLParam(r, "id")
+	sourceID := chi.URLParam(r, "sourceId")
+	owner := ownerID(r)
+	if sourceID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "sourceId required"})
+		return
+	}
+	if s.useDB() {
+		if _, err := s.Store.Get("project", projectID, owner); err != nil {
+			if err == sql.ErrNoRows {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "project not found"})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		// ensure source belongs to project and owner
+		src, err := s.Store.Get("source", sourceID, owner)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "source not found"})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		if fmt.Sprintf("%v", src["project_id"]) != projectID {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "source not found in this project"})
+			return
+		}
+		if err := s.Store.Delete("source", sourceID, owner); err != nil {
+			if err == sql.ErrNoRows {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "source not found"})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.projects[projectID]; !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "project not found"})
+		return
+	}
+	src, ok := s.sources[sourceID]
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "source not found"})
+		return
+	}
+	if fmt.Sprintf("%v", src["project_id"]) != projectID {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "source not found in this project"})
+		return
+	}
+	if owner != "" {
+		if oid := fmt.Sprintf("%v", src["owner_user_id"]); oid != "" && oid != owner {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "source not found"})
+			return
+		}
+	}
+	delete(s.sources, sourceID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
