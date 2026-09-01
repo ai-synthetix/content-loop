@@ -96,7 +96,7 @@ export default function GuidePage() {
 
           <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 14, padding: "14px 10px 18px", overflowX: "auto" }}>
             <div style={{ position: "relative", height: 28, marginTop: 12, marginBottom: -2, minWidth: 980 }}>
-              <div style={{ position: "absolute", left: "50%", top: -5, transform: "translateX(-50%)", fontSize: 11, fontWeight: 600, color: "#c4b5fd", zIndex: 1, whiteSpace: "nowrap" }}>Инсайт → новая идея</div>
+              <div style={{ position: "absolute", left: "50%", top: -7, transform: "translateX(-50%)", fontSize: 11, fontWeight: 600, color: "#c4b5fd", zIndex: 1, whiteSpace: "nowrap" }}>Инсайт → новая идея</div>
               <div style={{ position: "absolute", left: "5.5%", right: "6.5%", top: 8, height: 1, background: "#8b5cf6" }} />
               <div style={{ position: "absolute", left: "5.5%", top: 8, width: 1, height: 14, background: "#8b5cf6" }} />
               <div style={{ position: "absolute", right: "6.5%", top: 8, width: 1, height: 14, background: "#8b5cf6" }} />
@@ -104,7 +104,7 @@ export default function GuidePage() {
             </div>
             <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 260 }}>
               <div style={{ position: "absolute", left: "50px", right: "50px", top: "59px", height: "1px", background: "#4a3a7a", opacity: 0.9, pointerEvents: "none" }} />
-              <div style={{ display: "flex", alignItems: "stretch", gap: 0, height: 260, position: "relative", zIndex: 1 }}>
+              <div style={{ display: "flex", alignItems: "stretch", gap: 8, height: 260, position: "relative", zIndex: 1 }}>
                 {STAGES.map((st, i) => (
                   <div key={st.key} style={{ display: "flex", alignItems: "flex-start", flex: 1, gap: 0 }}>
                     <div style={{ flex: 1, textAlign: "center", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", height: "100%" }}>
@@ -112,7 +112,7 @@ export default function GuidePage() {
                         {st.statuses.length > 1 ? (
                           <div
                             style={{
-                              background: "rgba(255,255,255,0.04)",
+                              background: "#182030",
                               border: `1px solid ${st.border}55`,
                               borderRadius: 8,
                               padding: "8px 6px",
