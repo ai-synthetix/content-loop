@@ -95,17 +95,13 @@ export default function GuidePage() {
           <h2 style={{ fontSize: 16, margin: "10px 0 10px" }}>Pipeline — idea → reflected</h2>
 
           <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 14, padding: "14px 10px 18px", overflowX: "auto" }}>
-            <div style={{ textAlign: "center", marginBottom: 2, marginTop: 12 }}>
-              <span style={{ background: "#0f1620", border: "1px solid #3a2a5a", borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 600, color: "#c4b5fd", letterSpacing: 0.3 }}>Инсайт → новая идея</span>
+            <div style={{ position: "relative", height: 28, marginTop: 12, marginBottom: -2, minWidth: 980 }}>
+              <div style={{ position: "absolute", left: "50%", top: 0, transform: "translateX(-50%)", background: "#0f1620", border: "1px solid #3a2a5a", borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 600, color: "#c4b5fd", zIndex: 1, whiteSpace: "nowrap" }}>Инсайт → новая идея</div>
+              <div style={{ position: "absolute", left: "6.5%", right: "6.5%", top: 18, height: 1, background: "#8b5cf6" }} />
+              <div style={{ position: "absolute", left: "6.5%", top: 18, width: 1, height: 14, background: "#8b5cf6" }} />
+              <div style={{ position: "absolute", right: "6.5%", top: 18, width: 1, height: 14, background: "#8b5cf6" }} />
+              <div style={{ position: "absolute", left: "6.5%", top: 32, width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: "8px solid #8b5cf6", marginLeft: -6 }} />
             </div>
-            <svg viewBox="0 0 980 36" width={980} height={36} style={{ display: "block", marginBottom: -2 }}>
-              <defs>
-                <marker id="arrow-guide" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={6} markerHeight={6} orient="auto-start-reverse">
-                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b5cf6" />
-                </marker>
-              </defs>
-              <path d="M 940 32 V 6 H 65 V 32" fill="none" stroke="#8b5cf6" strokeWidth={1} strokeDasharray="4 4" markerEnd="url(#arrow-guide)" />
-            </svg>
             <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 260 }}>
               <div style={{ display: "flex", alignItems: "stretch", gap: 0, height: 260 }}>
                 {STAGES.map((st, i) => (
