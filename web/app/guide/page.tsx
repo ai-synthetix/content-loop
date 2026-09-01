@@ -74,16 +74,16 @@ export default function GuidePage() {
                   <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b5cf6" />
                 </marker>
               </defs>
-              <path d="M 920 4 L 920 22 L 60 22 L 60 4" fill="none" stroke="#8b5cf6" strokeWidth={1} strokeDasharray="4 4" markerEnd="url(#arrow-guide)" />
+              <path d="M 920 22 V 4 H 60 V 22" fill="none" stroke="#8b5cf6" strokeWidth={1} strokeDasharray="4 4" markerEnd="url(#arrow-guide)" />
               <text x={490} y={13} textAnchor="middle" fontSize={10} fill="#c4b5fd" fontWeight={600} style={{ paintOrder: "stroke", stroke: "#0f1620", strokeWidth: 3 }}>
-                Замыкает луп: reflected → новая idea (next_test)
+                Замыкает луп: новая идея из reflected (next_test)
               </text>
             </svg>
-            <div style={{ minWidth: 980, position: "relative", paddingBottom: 0 }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 0 }}>
+            <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 170 }}>
+              <div style={{ display: "flex", alignItems: "stretch", gap: 0, height: 170 }}>
                 {STAGES.map((st, i) => (
                   <div key={st.key} style={{ display: "flex", alignItems: "flex-start", flex: 1, gap: 0 }}>
-                    <div style={{ flex: 1, textAlign: "center", minWidth: 0 }}>
+                    <div style={{ flex: 1, textAlign: "center", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", height: "100%" }}>
                       {st.statuses.length > 1 ? (
                         <div
                           style={{
@@ -122,6 +122,16 @@ export default function GuidePage() {
                           ))}
                         </div>
                       )}
+                      <div style={{ flex: 1, minHeight: 6 }} />
+                      <div
+                        style={{
+                          width: 1,
+                          height: 12,
+                          background: "#2a3a52",
+                          opacity: 0.6,
+                          marginBottom: 4,
+                        }}
+                      />
                       <div
                         style={{
                           width: 36,
