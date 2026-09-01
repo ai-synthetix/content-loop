@@ -97,10 +97,10 @@ export default function GuidePage() {
           <div style={{ background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 14, padding: "14px 10px 18px", overflowX: "auto" }}>
             <div style={{ position: "relative", height: 28, marginTop: 12, marginBottom: -2, minWidth: 980 }}>
               <div style={{ position: "absolute", left: "50%", top: -5, transform: "translateX(-50%)", fontSize: 11, fontWeight: 600, color: "#c4b5fd", zIndex: 1, whiteSpace: "nowrap" }}>Инсайт → новая идея</div>
-              <div style={{ position: "absolute", left: "6.5%", right: "6.5%", top: 8, height: 1, background: "#8b5cf6" }} />
-              <div style={{ position: "absolute", left: "6.5%", top: 8, width: 1, height: 14, background: "#8b5cf6" }} />
+              <div style={{ position: "absolute", left: "5.5%", right: "6.5%", top: 8, height: 1, background: "#8b5cf6" }} />
+              <div style={{ position: "absolute", left: "5.5%", top: 8, width: 1, height: 14, background: "#8b5cf6" }} />
               <div style={{ position: "absolute", right: "6.5%", top: 8, width: 1, height: 14, background: "#8b5cf6" }} />
-              <div style={{ position: "absolute", left: "6.5%", top: 22, width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: "8px solid #8b5cf6", marginLeft: -6 }} />
+              <div style={{ position: "absolute", left: "5.5%", top: 22, width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: "8px solid #8b5cf6", marginLeft: -6 }} />
             </div>
             <div style={{ minWidth: 980, position: "relative", paddingBottom: 0, height: 260 }}>
               <div style={{ display: "flex", alignItems: "stretch", gap: 0, height: 260 }}>
@@ -114,7 +114,7 @@ export default function GuidePage() {
                             border: `1px solid ${st.border}55`,
                             borderRadius: 8,
                             padding: "8px 6px",
-                            minHeight: 44,
+                            height: 110,
                             display: "flex",
                             flexWrap: "wrap",
                             gap: 6,
@@ -131,7 +131,7 @@ export default function GuidePage() {
                         <div
                           style={{
                             padding: "6px 0",
-                            minHeight: 44,
+                            height: 110,
                             display: "flex",
                             flexWrap: "wrap",
                             gap: 6,
