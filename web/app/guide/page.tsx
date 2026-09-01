@@ -188,10 +188,10 @@ export default function GuidePage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 520 }}>
               <thead>
                 <tr style={{ textAlign: "left", borderBottom: "1px solid #1e2f44", background: "#0b1420" }}>
-                  <th style={{ padding: "8px 10px" }}></th>
                   <th style={{ padding: "8px 10px" }}>Status</th>
                   <th style={{ padding: "8px 10px" }}>Description</th>
                   <th style={{ padding: "8px 10px" }}>Owner</th>
+                  <th style={{ padding: "8px 10px", textAlign: "center" }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -199,12 +199,12 @@ export default function GuidePage() {
                     const ownerIcon = r.owner.includes("human") && r.owner.includes("AI") ? "👤🤖" : r.owner.includes("human") ? "👤" : r.owner === "AI" ? "🤖" : r.owner.includes("system") ? "⚙️" : "•";
                     return (
                       <tr key={r.status} style={{ borderBottom: "1px solid #1e2f44" }}>
-                        <td style={{ padding: "8px 10px", textAlign: "center", fontSize: 14 }}>{ownerIcon}</td>
                         <td style={{ padding: "8px 10px" }}>
                           <StatusBadge status={r.status} size={11} />
                         </td>
                         <td style={{ padding: "8px 10px", color: "#8FA0B8" }}>{r.desc}</td>
                         <td style={{ padding: "8px 10px", color: "#5a6b86", fontSize: 11 }}>{r.owner}</td>
+                        <td style={{ padding: "8px 10px", textAlign: "center", fontSize: 14 }}>{ownerIcon}</td>
                       </tr>
                     );
                   })}
