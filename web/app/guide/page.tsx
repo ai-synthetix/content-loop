@@ -156,27 +156,29 @@ export default function GuidePage() {
                           height: 12,
                           background: "#2a3a52",
                           opacity: 0.6,
-                          marginBottom: 4,
+                          marginBottom: 6,
                         }}
                       />
-                      <div
-                        style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 12,
-                          background: st.bg,
-                          border: `1px solid ${st.border}`,
-                          display: "grid",
-                          placeItems: "center",
-                          margin: "0 auto 6px",
-                          fontSize: 15,
-                        }}
-                      >
-                        {st.icon}
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                        <div
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 12,
+                            background: st.bg,
+                            border: `1px solid ${st.border}`,
+                            display: "grid",
+                            placeItems: "center",
+                            fontSize: 16,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {st.icon}
+                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#cfe0ff", textAlign: "center" }}>{st.label}</div>
+                        <div style={{ fontSize: 10, color: "#8FA0B8", lineHeight: 1.2, minHeight: 24, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.hint}</div>
+                        <div style={{ fontSize: 10, color: "#5a6b86", fontWeight: 400, minHeight: 14, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.caption}</div>
                       </div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#cfe0ff" }}>{st.label}</div>
-                      <div style={{ fontSize: 10, color: "#8FA0B8", lineHeight: 1.2, minHeight: 24, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.hint}</div>
-                      <div style={{ fontSize: 10, color: "#5a6b86", marginTop: 2, fontWeight: 400, minHeight: 14, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{st.caption}</div>
                     </div>
                     {i < STAGES.length - 1 && (
                       <div
