@@ -37,8 +37,8 @@ export function Header() {
       <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
         <Link href="/" style={{ color: "#eee", textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", display: "grid", placeItems: "center", fontSize: 14 }}>🌀</span><strong style={{ fontSize: 16, letterSpacing: -0.3 }}>SwipeLoop</strong></Link>
         <nav style={{ display: "flex", gap: 12, fontSize: 13 }}>
-          <Link href="/dashboard" style={{ color: "#8fb8ff", textDecoration: "none" }}>Dashboard</Link>
-          <Link href="/" style={{ color: "#8fb8ff", textDecoration: "none" }}>Queue</Link>
+          <Link href="/" style={{ color: "#8fb8ff", textDecoration: "none" }}>Dashboard</Link>
+          <Link href="/queue" style={{ color: "#8fb8ff", textDecoration: "none" }}>Queue</Link>
           <Link href="/projects" style={{ color: "#8fb8ff", textDecoration: "none" }}>Projects</Link>
           <Link href="/settings/channels" style={{ color: "#8fb8ff", textDecoration: "none" }}>Channels</Link>
           <Link href="/prompts" style={{ color: "#8fb8ff", textDecoration: "none" }}>Prompts</Link>
