@@ -7,17 +7,31 @@ export function Header() {
   const [email, setEmail] = useState<string | null>(null);
   const router = useRouter();
   useEffect(() => {
-    const t = getToken();
-    if (!t) return;
-    fetch(apiUrl("/me"), { headers: { ...authHeaders() } })
-      .then((r) => {
-        if (r.status === 401) { clearToken(); return null; }
-        return r.ok ? r.json() : null;
-      })
-      .then((d) => { if (d?.email) setEmail(d.email); })
-      .catch(() => {});
+    function fetchMe() {
+      const t = getToken();
+      if (!t) { setEmail(null); return; }
+      fetch(apiUrl("/me"), { headers: { ...authHeaders() } })
+        .then((r) => {
+          if (r.status === 401) { clearToken(); setEmail(null); return null; }
+          return r.ok ? r.json() : null;
+        })
+        .then((d) => { if (d?.email) setEmail(d.email); else if (d === null) setEmail(null); })
+        .catch(() => {});
+    }
+    fetchMe();
+    const onAuth = () => fetchMe();
+    const onFocus = () => fetchMe();
+    const onStorage = (e: StorageEvent) => { if (e.key === "content_loop_jwt") fetchMe(); };
+    window.addEventListener("auth-changed", onAuth);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("auth-changed", onAuth);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
-  function logout() { clearToken(); setEmail(null); router.push("/login"); }
+  function logout() { clearToken(); setEmail(null); window.dispatchEvent(new Event("auth-changed")); router.push("/login"); }
   return (
     <header style={{ padding: "12px 20px", borderBottom: "1px solid #222", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
       <div style={{ display: "flex", gap: 18, alignItems: "center" }}>

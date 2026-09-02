@@ -37,7 +37,9 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "auth failed");
       setToken(data.token);
+      window.dispatchEvent(new Event("auth-changed"));
       router.push("/");
+      router.refresh();
     } catch (e: any) { setError(e.message); } finally { setLoading(false); }
   }
 
