@@ -40,6 +40,7 @@ export function Header() {
         <nav style={{ display: "flex", gap: 12, fontSize: 13 }}>
           <Link href="/" style={{ color: "var(--link, #8fb8ff)", textDecoration: "none" }}>Dashboard</Link>
           <Link href="/queue" style={{ color: "var(--link, #8fb8ff)", textDecoration: "none" }}>Queue</Link>
+          <Link href="/swipe" style={{ color: "var(--link, #8fb8ff)", textDecoration: "none" }}>Swipe</Link>
           <Link href="/projects" style={{ color: "var(--link, #8fb8ff)", textDecoration: "none" }}>Projects</Link>
           <Link href="/settings/channels" style={{ color: "var(--link, #8fb8ff)", textDecoration: "none" }}>Channels</Link>
           <Link href="/prompts" style={{ color: "var(--link, #8fb8ff)", textDecoration: "none" }}>Prompts</Link>
