@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img" aria-label="SwipeLoop">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3D8DFF"/>
+      <stop offset="100%" stop-color="#6DCBF4"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="url(#g)"/>
+  <!-- swirl shape -->
+  <g fill="none" stroke="white" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 7 A9 9 0 1 1 16 25 A4.5 4.5 0 1 1 16 16 A2 2 0 1 0 16 20" stroke-width="2.4" opacity="0.98"/>
+  </g>
+  <circle cx="16" cy="11.6" r="1.4" fill="white"/>
+  <circle cx="16" cy="20.4" r="1.4" fill="white"/>
+</svg>

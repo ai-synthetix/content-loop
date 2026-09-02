@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getToken, apiUrl, authHeaders, clearToken } from "../lib/auth";
 import { Skeleton } from "../components/Skeleton";
+import { StatusBadge } from "../components/StatusBadge";
 
 type Item = { id: string; status?: string; title?: string; slug?: string; updated_at?: string; created_at?: string; brief?: string | Record<string, unknown> | null };
 type Pub = { id: string; content_item_id?: string; status?: string; published_at?: string; created_at?: string };
@@ -88,6 +89,26 @@ export default function Dashboard() {
   const card: React.CSSProperties = { background: "linear-gradient(135deg,#0f1620 0%,#16202e 100%)", border: "1px solid #1e2f44", borderRadius: 14, padding: 16, boxShadow: "0 4px 16px rgba(0,0,0,0.25)" };
   const label: React.CSSProperties = { fontSize: 10, color: "#8FA0B8", textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700 };
   const value: React.CSSProperties = { fontSize: 28, fontWeight: 800, color: "#dbe7ff", marginTop: 8 };
+  const STATUS_META: Record<string, { label: string; bg: string; border: string; accent: string; icon: string }> = {
+    idea:               { label: "Idea",      bg: "#143054", border: "#2a5a8a", accent: "#3D8DFF", icon: "💡" },
+    brief:             { label: "Brief",     bg: "#101f36", border: "#23446e", accent: "#5B8DEF", icon: "📋" },
+    brief_ready:       { label: "Brief",     bg: "#101f36", border: "#23446e", accent: "#5B8DEF", icon: "📋" },
+    draft:             { label: "Draft",     bg: "#1e1a08", border: "#4a3d16", accent: "#eab308", icon: "✍️" },
+    drafting:          { label: "Draft",     bg: "#1e1a08", border: "#4a3d16", accent: "#eab308", icon: "✍️" },
+    review:            { label: "Review",    bg: "#231a0a", border: "#5a3420", accent: "#ff7a1a", icon: "👀" },
+    review_ready:      { label: "Review",    bg: "#231a0a", border: "#5a3420", accent: "#ff7a1a", icon: "👀" },
+    approved:          { label: "Approved",  bg: "#123825", border: "#1f6b3a", accent: "#22c55e", icon: "✅" },
+    publish:           { label: "Publish",   bg: "#0f2a4d", border: "#234b7a", accent: "#3D8DFF", icon: "🚀" },
+    publishing:        { label: "Publish",   bg: "#0f2a4d", border: "#234b7a", accent: "#3D8DFF", icon: "🚀" },
+    published:         { label: "Publish",   bg: "#0f2a4d", border: "#234b7a", accent: "#3D8DFF", icon: "🚀" },
+    scheduled:         { label: "Publish",   bg: "#0f2a4d", border: "#234b7a", accent: "#60a5fa", icon: "📅" },
+    measuring:         { label: "Measuring", bg: "#2e1e08", border: "#5a3a18", accent: "#f59e0b", icon: "📊" },
+    reflected:         { label: "Reflected", bg: "#1a1633", border: "#3a2a6b", accent: "#8b5cf6", icon: "💭" },
+    rejected:          { label: "Rejected",  bg: "#2e1218", border: "#6b2530", accent: "#ef4444", icon: "⛔" },
+    failed:            { label: "Failed",    bg: "#2e1218", border: "#6b2530", accent: "#ef4444", icon: "💥" },
+    changes_requested: { label: "Changes",   bg: "#2e1a0a", border: "#6b3a1a", accent: "#fb923c", icon: "↩️" },
+  };
+  function metaFor(s: string) { return STATUS_META[s.toLowerCase()] || { label: s, bg: "#111a2a", border: "#1e2f44", accent: "#3D8DFF", icon: "🏷️" }; }
 
   return (
     <div>
@@ -138,24 +159,61 @@ export default function Dashboard() {
       </div>
 
       <div style={{ ...card, marginTop: 16 }}>
-        <h3 style={{ margin: "0 0 10px", fontSize: 13 }}>Status breakdown</h3>
-        {Object.keys(statusMap).length === 0 ? <div style={{ fontSize: 12, opacity: 0.5 }}>No items</div> : (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {Object.entries(statusMap).sort((a,b)=>b[1]-a[1]).map(([st, n]) => (
-              <Link key={st} href={`/queue`} style={{ background: "#0b111a", border: "1px solid #1e2f44", borderRadius: 20, padding: "6px 12px", fontSize: 12, color: "#cfe0ff", textDecoration: "none" }}>
-                {st} <strong style={{ color: "#7eb8ff", marginLeft: 6 }}>{n}</strong>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <h3 style={{ margin: 0, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg,#1e3a5f,#162a45)", display: "grid", placeItems: "center", fontSize: 14, border: "1px solid #2a4a6e" }}>📈</span>Status breakdown <span style={{ fontWeight: 400, opacity: 0.5, fontSize: 11 }}>· {total} total</span></h3>
+          <span style={{ fontSize: 11, color: "#6e8bb5", background: "#0b111a", border: "1px solid #1e2f44", borderRadius: 20, padding: "4px 10px" }}>{Object.keys(statusMap).length} statuses</span>
+        </div>
+
+        {Object.keys(statusMap).length === 0 ? <div style={{ fontSize: 12, opacity: 0.5, marginTop: 14 }}>No items</div> : (
+          <>
+            {/* segmented progress */}
+            <div style={{ marginTop: 14, height: 8, borderRadius: 99, overflow: "hidden", display: "flex", background: "#0b111a", border: "1px solid #1a2a42" }}>
+              {Object.entries(statusMap).sort((a, b) => b[1] - a[1]).map(([st, n]) => {
+                const m = metaFor(st);
+                const pct = total ? (n / total) * 100 : 0;
+                return <div key={st} title={`${m.label}: ${n} (${pct.toFixed(1)}%)`} style={{ width: `${pct}%`, background: m.accent, minWidth: n > 0 ? 2 : 0, opacity: 0.95 }} />;
+              })}
+            </div>
+
+            {/* icon cards with bars */}
+            <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(148px, 1fr))", gap: 10 }}>
+              {Object.entries(statusMap).sort((a, b) => b[1] - a[1]).map(([st, n]) => {
+                const m = metaFor(st);
+                const pct = total ? Math.round((n / total) * 100) : 0;
+                return (
+                  <Link key={st} href="/queue" style={{ textDecoration: "none", display: "block", background: m.bg, border: `1px solid ${m.border}`, borderRadius: 12, padding: 12, boxShadow: "0 2px 10px rgba(0,0,0,0.22)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <span style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(255,255,255,0.08)", border: `1px solid ${m.border}`, display: "grid", placeItems: "center", fontSize: 14 }}>{m.icon}</span>
+                      <span style={{ fontSize: 20, fontWeight: 800, color: "#e6f0ff", lineHeight: 1 }}>{n}</span>
+                    </div>
+                    <div style={{ marginTop: 8, fontSize: 11, fontWeight: 700, color: "#cfe0ff", letterSpacing: 0.3, textTransform: "uppercase" }}>{m.label}</div>
+                    <div style={{ marginTop: 8, height: 6, borderRadius: 99, background: "rgba(255,255,255,0.10)", overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: m.accent, borderRadius: 99, boxShadow: `0 0 8px ${m.accent}55` }} />
+                    </div>
+                    <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)" }}>{pct}% of total</span>
+                      <span style={{ fontSize: 10, color: m.accent, fontWeight: 700 }}>↗</span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {/* compact recent list with StatusBadge */}
+        <div style={{ marginTop: 16, borderTop: "1px solid #1a2a42", paddingTop: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#6e8bb5", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 8 }}>Recent items</div>
+          <div style={{ display: "grid", gap: 6, maxHeight: 260, overflow: "auto", paddingRight: 2 }}>
+            {items.slice(0, 8).map(it => (
+              <Link key={it.id} href={`/items/${it.id}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", background: "#0b111a", border: "1px solid #1e2f44", borderRadius: 10, textDecoration: "none" }}>
+                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#d6e6ff", fontSize: 12, fontWeight: 500 }}>{it.title || it.slug || it.id.slice(0, 8)}</span>
+                <StatusBadge status={it.status || ""} size={10} />
               </Link>
             ))}
+            {items.length === 0 && <div style={{ fontSize: 11, opacity: 0.45 }}>No items yet</div>}
+            {items.length > 8 && <div style={{ fontSize: 11, opacity: 0.5, textAlign: "center", paddingTop: 4 }}>+ {items.length - 8} more — <Link href="/queue" style={{ color: "#7eb8ff" }}>view queue</Link></div>}
           </div>
-        )}
-        <div style={{ marginTop: 12, display: "grid", gap: 6, maxHeight: 220, overflow: "auto" }}>
-          {items.slice(0, 8).map(it => (
-            <Link key={it.id} href={`/items/${it.id}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "8px 10px", background: "#0b111a", border: "1px solid #1e2f44", borderRadius: 8, textDecoration: "none", color: "#cfe0ff", fontSize: 12 }}>
-              <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.title || it.slug || it.id.slice(0, 8)}</span>
-              <span style={{ fontSize: 11, opacity: 0.6, whiteSpace: "nowrap" }}>{it.status || "—"}</span>
-            </Link>
-          ))}
-          {items.length > 8 && <div style={{ fontSize: 11, opacity: 0.5, textAlign: "center" }}>+ {items.length - 8} more — <Link href="/queue" style={{ color: "#7eb8ff" }}>view queue</Link></div>}
         </div>
       </div>
 

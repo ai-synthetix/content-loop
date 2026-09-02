@@ -4,9 +4,34 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getToken, authHeaders, apiUrl, clearToken } from "../../lib/auth";
 import { StatusBadge } from "../../components/StatusBadge";
-import { PipelineStepper } from "../../components/PipelineStepper";
 import { Skeleton, CardSkeleton } from "../../components/Skeleton";
 import { GenerationProgress, type Job } from "../../components/GenerationStatus";
+import { PipelineStepper } from "../../components/PipelineStepper";
+
+// — pipeline meta: single source of truth for top bar + per-item stepper (icons attached)
+const PIPELINE_STEPS = [
+  { k: "idea", label: "Idea", icon: "💡", bg: "#143054", border: "#2a5a8a" },
+  { k: "brief_ready", label: "Brief", icon: "📋", bg: "#101f36", border: "#2a3a52" },
+  { k: "drafting", label: "Draft", icon: "✍️", bg: "#1e1a08", border: "#4a3d16" },
+  { k: "review_ready", label: "Review", icon: "👁️", bg: "#231a0a", border: "#5a3420" },
+  { k: "approved", label: "Approved", icon: "✅", bg: "#123825", border: "#2a6b3a" },
+  { k: "published", label: "Publish", icon: "📡", bg: "#0f2a4d", border: "#2a4a7a" },
+  { k: "measuring", label: "Measure", icon: "📊", bg: "#2e1e08", border: "#6b3d16" },
+  { k: "reflected", label: "Reflected", icon: "💭", bg: "#1a1633", border: "#3a2a5a" },
+] as const;
+
+function pipelineIndexForStatus(status: string): number {
+  const s = (status || "").toLowerCase();
+  if (s === "idea") return 0;
+  if (s === "brief_ready") return 1;
+  if (s === "drafting" || s === "queued") return 2;
+  if (s === "review_ready") return 3;
+  if (s === "approved" || s === "changes_requested" || s === "rejected" || s === "scheduled") return 4;
+  if (s === "publishing" || s === "published" || s === "partially_published" || s === "failed") return 5;
+  if (s === "measuring") return 6;
+  if (s === "reflected") return 7;
+  return 0;
+}
 
 type Item = { id: string; title?: string; status?: string; slug?: string; project_id?: string; created_at?: string };
 type Project = { id: string; name?: string; slug?: string };
@@ -184,37 +209,33 @@ export default function Page() {
         <span style={{ fontSize: 11, opacity: 0.45, marginLeft: "auto" }}>{(() => { const f = items.filter(it => (filterProject === "all" || (it as any).project_id === filterProject) && (filterStatus === "all" || it.status === filterStatus)); return `${f.length}/${items.length} shown`; })()}</span>
       </div>
 
-      {/* pipeline — icon + counts, красиво как в Guide */}
+      {/* pipeline summary — clickable filter (icons stay on top, but also filter by click) */}
       <div style={{ marginTop: 12, background: "linear-gradient(135deg,#0f1620 0%,#111d2e 100%)", border: "1px solid #1e2f44", borderRadius: 14, padding: "14px 14px 10px", overflowX: "auto" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 0, minWidth: 640 }}>
-          {[
-            { k: "idea", label: "Idea", icon: "💡", bg: "#143054", border: "#2a5a8a" },
-            { k: "brief_ready", label: "Brief", icon: "📋", bg: "#101f36", border: "#2a3a52" },
-            { k: "drafting", label: "Draft", icon: "✍️", bg: "#1e1a08", border: "#4a3d16" },
-            { k: "review_ready", label: "Review", icon: "👁️", bg: "#231a0a", border: "#5a3420" },
-            { k: "approved", label: "Approved", icon: "✅", bg: "#123825", border: "#2a6b3a" },
-            { k: "published", label: "Publish", icon: "📡", bg: "#0f2a4d", border: "#2a4a7a" },
-            { k: "measuring", label: "Measure", icon: "📊", bg: "#2e1e08", border: "#6b3d16" },
-            { k: "reflected", label: "Reflected", icon: "💭", bg: "#1a1633", border: "#3a2a5a" },
-          ].map((s, i, arr) => {
+          {PIPELINE_STEPS.map((s, i, arr) => {
             const c = items.filter(it => (filterProject === "all" || (it as any).project_id === filterProject) && it.status === s.k).length;
-            // draft groups queued+drafting, publish groups publishing/published/partial/failed
             const count = s.k === "drafting" ? items.filter(it => (filterProject === "all" || (it as any).project_id === filterProject) && (it.status === "drafting" || it.status === "queued")).length
               : s.k === "published" ? items.filter(it => (filterProject === "all" || (it as any).project_id === filterProject) && ["publishing","published","partially_published","failed"].includes(it.status || "")).length
               : c;
             const has = count > 0;
+            const isSelected = filterStatus === s.k;
             return (
               <div key={s.k} style={{ display: "flex", alignItems: "center", gap: 0, flex: 1 }}>
-                <div style={{ flex: 1, textAlign: "center", minWidth: 72 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 12, background: s.bg, border: `1px solid ${has ? s.border : "#1e2f44"}`, display: "grid", placeItems: "center", margin: "0 auto 6px", fontSize: 16, opacity: has ? 1 : 0.6, boxShadow: has ? `0 0 10px ${s.border}55` : "none" }}>{s.icon}</div>
-                  <div style={{ fontSize: 11, fontWeight: has ? 700 : 500, color: has ? "#cfe0ff" : "#5a6b86" }}>{s.label}</div>
-                  <div style={{ marginTop: 4, display: "inline-block", background: has ? "#162a44" : "#0b111a", border: `1px solid ${has ? "#2a4a7a" : "#1e2f44"}`, color: has ? "#7eb8ff" : "#5a6b86", borderRadius: 20, padding: "2px 8px", fontSize: 11, fontWeight: 700, minWidth: 22 }}>{count}</div>
-                </div>
-                {i < arr.length - 1 && <div style={{ color: has ? "#2a4a7a" : "#1e2f44", fontSize: 12, margin: "0 2px", marginTop: -18 }}>→</div>}
+                <button
+                  onClick={() => setFilterStatus(prev => prev === s.k ? "all" : s.k)}
+                  title={isSelected ? `Remove ${s.label} filter` : `Filter by ${s.label} (${count})`}
+                  style={{ flex: 1, textAlign: "center", minWidth: 72, background: isSelected ? "#162a44" : "transparent", border: isSelected ? "1px solid #3D8DFF" : "1px solid transparent", borderRadius: 12, padding: "4px 2px 6px", cursor: "pointer", transition: "all .15s" }}
+                >
+                  <div style={{ width: 36, height: 36, borderRadius: 12, background: isSelected ? "#1e3a5a" : s.bg, border: `1px solid ${isSelected ? "#3D8DFF" : has ? s.border : "#1e2f44"}`, display: "grid", placeItems: "center", margin: "0 auto 6px", fontSize: 16, opacity: has || isSelected ? 1 : 0.6, boxShadow: isSelected ? "0 0 14px rgba(61,141,255,.55)" : has ? `0 0 10px ${s.border}55` : "none" }}>{s.icon}</div>
+                  <div style={{ fontSize: 11, fontWeight: has || isSelected ? 700 : 500, color: isSelected ? "#8FB8FF" : has ? "#cfe0ff" : "#5a6b86" }}>{s.label}</div>
+                  <div style={{ marginTop: 4, display: "inline-block", background: isSelected ? "#3D8DFF" : has ? "#162a44" : "#0b111a", border: `1px solid ${isSelected ? "#3D8DFF" : has ? "#2a4a7a" : "#1e2f44"}`, color: isSelected ? "#fff" : has ? "#7eb8ff" : "#5a6b86", borderRadius: 20, padding: "2px 8px", fontSize: 11, fontWeight: 700, minWidth: 22 }}>{count}</div>
+                </button>
+                {i < arr.length - 1 && <div style={{ color: isSelected ? "#3D8DFF" : has ? "#2a4a7a" : "#1e2f44", fontSize: 12, margin: "0 2px", marginTop: -18 }}>→</div>}
               </div>
             );
           })}
         </div>
+        {filterStatus !== "all" && <div style={{ marginTop: 8, textAlign: "center", fontSize: 11, color: "#8FB8FF" }}>Filtering by <strong>{PIPELINE_STEPS.find(s=>s.k===filterStatus)?.label ?? filterStatus}</strong> · <button onClick={()=>setFilterStatus("all")} style={{ background:"none", border:"none", color:"#6DCBF4", cursor:"pointer", textDecoration:"underline", fontSize:11, padding:0 }}>clear</button></div>}
       </div>
 
       {items.length === 0 ? (
@@ -242,8 +263,41 @@ export default function Page() {
                   </div>
                   <StatusBadge status={it.status || ""} size={11} />
                 </div>
-                <div style={{ marginTop: 10, background: "#0b111a", borderRadius: 10, padding: "8px 10px", border: "1px solid #0f1f33" }}>
-                  <PipelineStepper status={it.status || "idea"} compact />
+                {/* per-item pipeline — icons attached to item (fix detached icons) */}
+                <div style={{ marginTop: 10, background: "#0b111a", borderRadius: 10, padding: "8px 6px 6px", border: "1px solid #0f1f33", overflowX: "auto" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+                    {PIPELINE_STEPS.map((st, i) => {
+                      const idx = pipelineIndexForStatus(it.status || "idea");
+                      const active = i === idx;
+                      const done = i < idx;
+                      return (
+                        <div key={st.k} style={{ display: "flex", alignItems: "center", gap: 0, flex: 1, minWidth: 0 }}>
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 32, opacity: done || active ? 1 : 0.45 }}>
+                            <div
+                              title={`${st.label}${active ? " — current" : done ? " — done" : ""}`}
+                              style={{
+                                width: active ? 26 : 20,
+                                height: active ? 26 : 20,
+                                borderRadius: 999,
+                                display: "grid",
+                                placeItems: "center",
+                                fontSize: active ? 12 : 10,
+                                background: done ? "#1f4a2b" : active ? st.bg : "#1a2636",
+                                color: done ? "#6fdc8c" : active ? "#fff" : "#5a6b86",
+                                border: `1px solid ${active ? st.border : done ? "#2a5a3a" : "#1e2f44"}`,
+                                boxShadow: active ? `0 0 10px ${st.border}88` : "none",
+                              }}
+                            >
+                              {done ? "✓" : st.icon}
+                            </div>
+                            <div style={{ fontSize: 9, fontWeight: active ? 700 : 500, color: active ? "#cfe0ff" : done ? "#8FA0B8" : "#5a6b86", whiteSpace: "nowrap" }}>{st.label}</div>
+                            <div style={{ width: active ? 18 : done ? 14 : 6, height: 2, borderRadius: 1, background: active ? "#3D8DFF" : done ? "#2a5a3a" : "#1e2f44", marginTop: 1 }} />
+                          </div>
+                          {i < PIPELINE_STEPS.length - 1 && <div style={{ width: 8, height: 1, background: i < idx ? "#2a5a3a" : "#1e2f44", margin: "0 1px", marginBottom: 14, flexShrink: 0 }} />}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
                 {showJob && (
                   <div style={{ marginTop: 10, background: "#0b111a", border: "1px solid #1e2f44", borderRadius: 10, padding: 10 }} onClick={(e) => e.preventDefault()}>
