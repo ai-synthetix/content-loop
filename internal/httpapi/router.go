@@ -187,6 +187,12 @@ func NewRouterWithConfig(cfg Config) http.Handler {
 					r.Delete("/{sourceId}", s.deleteProjectSource)
 				})
 				r.Post("/{id}/generate-candidates", s.handleGenerateCandidates)
+				r.Post("/{id}/swipe-batches", s.handleCreateSwipeBatch)
+				r.Get("/{id}/swipe-batches", s.handleGetSwipeBatches)
+			})
+			r.Route("/swipe-batches", func(r chi.Router) {
+				r.Post("/{bid}/vote", s.handleSwipeVote)
+				r.Post("/{bid}/assemble", s.handleAssembleSwipeBatch)
 			})
 			r.Route("/content-items", func(r chi.Router) {
 				r.Get("/", s.listContentItems)
