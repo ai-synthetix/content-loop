@@ -169,7 +169,7 @@ func (s *Server) handleGetSwipeBatches(w http.ResponseWriter, r *http.Request) {
 		projectID, owner, status)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "no swipe batch found"})
+			writeJSON(w, http.StatusOK, map[string]any{"batch": nil, "options": []any{}})
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
