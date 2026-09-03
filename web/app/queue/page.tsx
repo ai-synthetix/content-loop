@@ -46,9 +46,6 @@ export default function Page() {
   const [err, setErr] = useState<string | null>(null);
   const [jobs, setJobs] = useState<Record<string, Job>>({});
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [generating, setGenerating] = useState(false);
-  const [genErr, setGenErr] = useState<string | null>(null);
-  const [genOk, setGenOk] = useState<number | null>(null);
 
   const fetchProjects = useCallback(async () => {
     const r = await fetch(apiUrl("/api/v1/projects/"), { headers: { ...authHeaders() } });
@@ -67,25 +64,7 @@ export default function Page() {
     return (d.items || []) as Item[];
   }, [router]);
 
-  const handleGenerateCandidates = useCallback(async () => {
-    if (!activeId) return;
-    setGenErr(null); setGenOk(null); setGenerating(true);
-    try {
-      const r = await fetch(apiUrl(`/api/v1/projects/${activeId}/generate-candidates`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ count: 5 }),
-      });
-      if (r.status === 401) { clearToken(); router.replace("/login"); return; }
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || `generate failed ${r.status}`);
-      const created = (d.items || d || []) as Item[];
-      setGenOk(Array.isArray(created) ? created.length : (d.count ?? 5));
-      await fetchItems();
-    } catch (e: any) {
-      setGenErr(e.message || String(e));
-    } finally { setGenerating(false); }
-  }, [activeId, router, fetchItems]);
+  // Queue only receives winners via swipe assemble — no direct generation here.
 
   // Single fetch on mount only — no per-item generation-status polling on Queue
   useEffect(() => {
@@ -200,19 +179,15 @@ export default function Page() {
               <div style={{ fontSize: 28, marginBottom: 8 }}>💡</div>
               <div style={{ fontSize: 14, color: "#cfe0ff", fontWeight: 700, marginBottom: 6 }}>Нет тем для свайпа</div>
               <p style={{ opacity: 0.6, fontSize: 12, margin: "0 0 14px", maxWidth: 420, marginLeft: "auto", marginRight: "auto" }}>
-                Для проекта <strong style={{ color: "#8FB8FF" }}>{projects.find(p=>p.id===activeId)?.name || activeId.slice(0,8)}</strong> пока нет записей. Сгенерируйте 5 тем из контекста проекта и свайпайте их на <code style={{ background:"#0B1420", border:"1px solid #1e2f44", padding:"1px 6px", borderRadius:6 }}>/swipe</code>.
+                Для проекта <strong style={{ color: "#8FB8FF" }}>{projects.find(p=>p.id===activeId)?.name || activeId.slice(0,8)}</strong> пока нет записей. Очередь пополняется только победителями из свайпа.
               </p>
-              {genErr && <div style={{ background:"rgba(255,60,60,.12)", border:"1px solid rgba(255,60,60,.3)", color:"#ff8a8a", padding:"8px 10px", borderRadius:10, fontSize:12, marginBottom:10 }}>{genErr}</div>}
-              {genOk !== null && !genErr && <div style={{ background:"rgba(61,255,120,.12)", border:"1px solid rgba(61,255,120,.3)", color:"#6fdc8c", padding:"8px 10px", borderRadius:10, fontSize:12, marginBottom:10 }}>Создано {genOk} тем — <Link href="/swipe" style={{ color:"#6fdc8c", textDecoration:"underline" }}>перейти в Swipe →</Link></div>}
               <div style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap" }}>
-                <button
-                  onClick={handleGenerateCandidates}
-                  disabled={generating}
-                  style={{ background: generating ? "#2a4a7a" : "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color:"#fff", border:"none", borderRadius:10, padding:"10px 18px", fontWeight:700, cursor: generating ? "wait" : "pointer", opacity: generating ? 0.7 : 1, boxShadow:"0 4px 16px rgba(61,141,255,.35)" }}
+                <Link
+                  href="/swipe"
+                  style={{ background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color:"#fff", border:"none", borderRadius:10, padding:"10px 18px", fontWeight:700, textDecoration:"none", boxShadow:"0 4px 16px rgba(61,141,255,.35)" }}
                 >
-                  {generating ? "Генерируем…" : "Генерировать 5 тем из контекста"}
-                </button>
-                <Link href="/swipe" style={{ background:"#1a2636", border:"1px solid #2a3a52", color:"#8fb8ff", borderRadius:10, padding:"10px 14px", textDecoration:"none", fontWeight:600, fontSize:13, display:"inline-block" }}>В Swipe →</Link>
+                  Отобрать в свайпе →
+                </Link>
                 <Link href="/guide" style={{ background:"#1a2636", border:"1px solid #2a3a52", color:"#8FA0B8", borderRadius:10, padding:"10px 14px", textDecoration:"none", fontWeight:600, fontSize:13, display:"inline-block" }}>Гайд →</Link>
               </div>
             </div>

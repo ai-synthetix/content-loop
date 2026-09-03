@@ -193,6 +193,7 @@ func NewRouterWithConfig(cfg Config) http.Handler {
 			r.Route("/swipe-batches", func(r chi.Router) {
 				r.Post("/{bid}/vote", s.handleSwipeVote)
 				r.Post("/{bid}/assemble", s.handleAssembleSwipeBatch)
+				r.Post("/{bid}/next-round", s.handleNextRoundSwipeBatch)
 			})
 			r.Route("/content-items", func(r chi.Router) {
 				r.Get("/", s.listContentItems)

@@ -107,8 +107,8 @@ func (s *Server) handleCreateSwipeBatch(w http.ResponseWriter, r *http.Request) 
 	})
 
 	batchID := uuid.NewString()
-	if _, err := s.Store.DB.Exec(`INSERT INTO `+"`swipe_batch`"+` (id, project_id, owner_user_id, layer, status) VALUES (?,?,?,?,?)`,
-		batchID, projectID, owner, layer, "open"); err != nil {
+	if _, err := s.Store.DB.Exec(`INSERT INTO `+"`swipe_batch`"+` (id, project_id, owner_user_id, layer, status, round) VALUES (?,?,?,?,?,?)`,
+		batchID, projectID, owner, layer, "open", 1); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -127,7 +127,7 @@ func (s *Server) handleCreateSwipeBatch(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"batch":   map[string]any{"id": batchID, "project_id": projectID, "layer": layer, "status": "open"},
+		"batch":   map[string]any{"id": batchID, "project_id": projectID, "layer": layer, "status": "open", "round": 1},
 		"options": opts,
 		"count":   len(opts),
 	})
@@ -356,7 +356,8 @@ func (s *Server) handleSwipeVote(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAssembleSwipeBatch POST /api/v1/swipe-batches/{bid}/assemble
-// Top-score option becomes a content_item (status=idea); batch -> assembled.
+// Promotes winners to content_items (status=idea); batch -> assembled.
+// Body: {option_ids?: [id...]} explicit picks, or {top?: N} top-N by score (default 1).
 func (s *Server) handleAssembleSwipeBatch(w http.ResponseWriter, r *http.Request) {
 	if !s.useDB() {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "database not configured"})
@@ -393,61 +394,301 @@ func (s *Server) handleAssembleSwipeBatch(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "batch has no options"})
 		return
 	}
-	top := options[0]
-	topID, _ := top["id"].(string)
-	hook, _ := top["text"].(string)
-	hook = strings.TrimSpace(hook)
-	if hook == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "top option is empty"})
+	// Pick targets: explicit option_ids, else top-N by score.
+	var body struct {
+		OptionIDs []string `json:"option_ids"`
+		Top       *int     `json:"top"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	targets := []map[string]any{}
+	if len(body.OptionIDs) > 0 {
+		byID := map[string]map[string]any{}
+		for _, o := range options {
+			if id, _ := o["id"].(string); id != "" {
+				byID[id] = o
+			}
+		}
+		for _, id := range body.OptionIDs {
+			if o, ok := byID[strings.TrimSpace(id)]; ok {
+				targets = append(targets, o)
+			}
+		}
+	} else {
+		n := 1
+		if body.Top != nil {
+			n = *body.Top
+		}
+		if n < 1 {
+			n = 1
+		}
+		if n > len(options) {
+			n = len(options)
+		}
+		targets = append([]map[string]any{}, options[:n]...)
+	}
+	if len(targets) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no options to promote"})
 		return
 	}
-	title := hook
-	if len([]rune(title)) > 500 {
-		title = string([]rune(title)[:500])
-	}
 
-	slug := makeUniqueSlug(title, owner, projectID)
-	briefBytes, _ := json.Marshal(map[string]string{"hook": hook, "batch_id": batchID})
-	itemID := uuid.NewString()
-	row := map[string]any{
-		"id":            itemID,
-		"owner_user_id": owner,
-		"project_id":    projectID,
-		"title":         title,
-		"slug":          slug,
-		"status":        "idea",
-		"brief":         string(briefBytes),
-	}
-	if err := s.Store.Insert("content_item", row); err != nil {
-		if strings.Contains(err.Error(), "Duplicate") || strings.Contains(strings.ToLower(err.Error()), "duplicate") {
-			row["slug"] = slug + "-" + uuid.NewString()[:6]
-			row["id"] = uuid.NewString()
-			itemID = row["id"].(string)
-			if err2 := s.Store.Insert("content_item", row); err2 != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err2.Error()})
+	items := make([]map[string]any, 0, len(targets))
+	promotedIDs := make([]string, 0, len(targets))
+	for _, t := range targets {
+		ts, _ := t["text"].(string)
+		text := strings.TrimSpace(ts)
+		if text == "" {
+			continue
+		}
+		title := text
+		if len([]rune(title)) > 500 {
+			title = string([]rune(title)[:500])
+		}
+		slug := makeUniqueSlug(title, owner, projectID)
+		briefBytes, _ := json.Marshal(map[string]string{"hook": text, "batch_id": batchID})
+		itemID := uuid.NewString()
+		row := map[string]any{
+			"id":            itemID,
+			"owner_user_id": owner,
+			"project_id":    projectID,
+			"title":         title,
+			"slug":          slug,
+			"status":        "idea",
+			"brief":         string(briefBytes),
+		}
+		if err := s.Store.Insert("content_item", row); err != nil {
+			if strings.Contains(err.Error(), "Duplicate") || strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+				row["slug"] = slug + "-" + uuid.NewString()[:6]
+				row["id"] = uuid.NewString()
+				itemID = row["id"].(string)
+				if err2 := s.Store.Insert("content_item", row); err2 != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err2.Error()})
+					return
+				}
+			} else {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 				return
 			}
+		}
+		if oid, _ := t["id"].(string); oid != "" {
+			promotedIDs = append(promotedIDs, oid)
+			_, _ = s.Store.DB.Exec(`UPDATE `+"`swipe_option`"+` SET status='winner' WHERE id=?`, oid)
+		}
+		item, err := s.Store.Get("content_item", itemID, owner)
+		if err != nil {
+			item = row
 		} else {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
+			for k, v := range item {
+				if b, ok := v.([]byte); ok {
+					item[k] = string(b)
+				}
+			}
+		}
+		items = append(items, item)
+	}
+	if len(items) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "selected options are empty"})
+		return
+	}
+	for _, o := range options {
+		if oid, _ := o["id"].(string); oid != "" {
+			_, _ = s.Store.DB.Exec(`UPDATE `+"`swipe_option`"+` SET status='loser' WHERE id=? AND status='pending'`, oid)
 		}
 	}
-
-	_, _ = s.Store.DB.Exec(`UPDATE `+"`swipe_option`"+` SET status='winner' WHERE id=?`, topID)
-	_, _ = s.Store.DB.Exec(`UPDATE `+"`swipe_option`"+` SET status='loser' WHERE batch_id=? AND id<>? AND status='pending'`, batchID, topID)
 	_, _ = s.Store.DB.Exec(`UPDATE `+"`swipe_batch`"+` SET status='assembled' WHERE id=?`, batchID)
 
-	item, err := s.Store.Get("content_item", itemID, owner)
+	resp := map[string]any{"items": items, "batch_id": batchID, "option_ids": promotedIDs, "count": len(items)}
+	resp["item"] = items[0] // backward compat: single-item clients
+	writeJSON(w, http.StatusCreated, resp)
+}
+
+// handleNextRoundSwipeBatch POST /api/v1/swipe-batches/{bid}/next-round {count?}
+// Evolves a new batch from winners: AI generates fresh hooks seeded with liked
+// texts + taste keywords. Old batch -> archived, new batch round+1.
+func (s *Server) handleNextRoundSwipeBatch(w http.ResponseWriter, r *http.Request) {
+	if !s.useDB() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "database not configured"})
+		return
+	}
+	batchID := chi.URLParam(r, "bid")
+	if batchID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "batch id required"})
+		return
+	}
+	owner := ownerID(r)
+
+	batch, err := s.queryRow(`SELECT * FROM `+"`swipe_batch`"+` WHERE id=? AND owner_user_id=?`, batchID, owner)
 	if err != nil {
-		item = row
-	} else {
-		for k, v := range item {
-			if b, ok := v.([]byte); ok {
-				item[k] = string(b)
+		if err == sql.ErrNoRows {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "swipe batch not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	projectID, _ := batch["project_id"].(string)
+	layer, _ := batch["layer"].(string)
+	if layer == "" {
+		layer = "hook"
+	}
+	round := 1
+	switch v := batch["round"].(type) {
+	case int64:
+		round = int(v)
+	case int:
+		round = v
+	case []byte:
+		fmt.Sscanf(string(v), "%d", &round)
+	case string:
+		fmt.Sscanf(v, "%d", &round)
+	}
+
+	var nbody struct {
+		Count *int `json:"count"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&nbody)
+	count := 5
+	if nbody.Count != nil {
+		count = *nbody.Count
+	}
+	if count < 1 {
+		count = 1
+	}
+	if count > 10 {
+		count = 10
+	}
+
+	options, err := s.queryRows(`SELECT * FROM `+"`swipe_option`"+` WHERE batch_id=? ORDER BY score DESC, wins DESC, created_at ASC`, batchID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	// Winners seed the next round: score>0 first, else top by score.
+	seeds := []string{}
+	for _, o := range options {
+		if toFloat(o["score"]) > 0 {
+			if t, _ := o["text"].(string); strings.TrimSpace(t) != "" {
+				seeds = append(seeds, strings.TrimSpace(t))
+			}
+		}
+		if len(seeds) >= 3 {
+			break
+		}
+	}
+	if len(seeds) == 0 {
+		for _, o := range options {
+			if t, _ := o["text"].(string); strings.TrimSpace(t) != "" {
+				seeds = append(seeds, strings.TrimSpace(t))
+			}
+			if len(seeds) >= 3 {
+				break
 			}
 		}
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"item": item, "batch_id": batchID, "option_id": topID})
+
+	weights := s.loadTasteWeights(projectID, owner)
+	type kv struct {
+		k string
+		v float64
+	}
+	kvarr := make([]kv, 0, len(weights))
+	for k, v := range weights {
+		if v > 0 {
+			kvarr = append(kvarr, kv{k, v})
+		}
+	}
+	sort.Slice(kvarr, func(i, j int) bool { return kvarr[i].v > kvarr[j].v })
+	tasteTop := []string{}
+	for _, e := range kvarr {
+		tasteTop = append(tasteTop, e.k)
+		if len(tasteTop) >= 15 {
+			break
+		}
+	}
+
+	proj, err := s.Store.Get("project", projectID, owner)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "project not found"})
+		return
+	}
+	projName, _ := proj["name"].(string)
+	projSlug, _ := proj["slug"].(string)
+	contextMD := swipeProjectContext(proj)
+
+	userMsg := buildSwipeEvolutionPrompt(layer, count, contextMD, projName, projSlug, seeds, tasteTop)
+	var aiResp string
+	if s.AI != nil {
+		aiResp, err = s.AI.Complete(r.Context(), ai.SystemBase, userMsg)
+		if err != nil {
+			log.Printf("[swipe] next-round AI error batch=%s err=%v", batchID, err)
+			aiResp = ""
+		}
+	}
+	texts := parseSwipeHooks(aiResp)
+	// Drop duplicates of seeds.
+	seen := map[string]bool{}
+	for _, sd := range seeds {
+		seen[strings.ToLower(strings.TrimSpace(sd))] = true
+	}
+	fresh := make([]string, 0, count)
+	for _, t := range texts {
+		key := strings.ToLower(strings.TrimSpace(t))
+		if !seen[key] {
+			fresh = append(fresh, t)
+			seen[key] = true
+		}
+		if len(fresh) >= count {
+			break
+		}
+	}
+	texts = fresh
+	if len(texts) < count {
+		base := strings.TrimSpace(projName)
+		if base == "" {
+			base = strings.TrimSpace(projSlug)
+		}
+		if base == "" {
+			base = "проект"
+		}
+		for i := len(texts); i < count; i++ {
+			fb := fmt.Sprintf("Хук %d: %s — новый заход, раунд %d", i+1, base, round+1)
+			if len([]rune(fb)) > 120 {
+				fb = string([]rune(fb)[:120])
+			}
+			texts = append(texts, fb)
+		}
+	}
+	sort.SliceStable(texts, func(i, j int) bool {
+		return swipeTasteScore(texts[i], weights) > swipeTasteScore(texts[j], weights)
+	})
+
+	newBatchID := uuid.NewString()
+	if _, err := s.Store.DB.Exec(`INSERT INTO `+"`swipe_batch`"+` (id, project_id, owner_user_id, layer, status, round, parent_id) VALUES (?,?,?,?,?,?,?)`,
+		newBatchID, projectID, owner, layer, "open", round+1, batchID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	opts := make([]map[string]any, 0, len(texts))
+	for _, t := range texts {
+		oid := uuid.NewString()
+		if _, err := s.Store.DB.Exec(`INSERT INTO `+"`swipe_option`"+` (id, batch_id, project_id, owner_user_id, text, score, wins, losses, status) VALUES (?,?,?,?,?,?,?,?,?)`,
+			oid, newBatchID, projectID, owner, t, 0, 0, 0, "pending"); err != nil {
+			log.Printf("[swipe] next-round option insert failed batch=%s err=%v", newBatchID, err)
+			continue
+		}
+		opts = append(opts, map[string]any{
+			"id": oid, "batch_id": newBatchID, "project_id": projectID,
+			"text": t, "score": 0, "wins": 0, "losses": 0, "status": "pending",
+		})
+	}
+	_, _ = s.Store.DB.Exec(`UPDATE `+"`swipe_batch`"+` SET status='archived' WHERE id=?`, batchID)
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"batch":       map[string]any{"id": newBatchID, "project_id": projectID, "layer": layer, "status": "open", "round": round + 1, "parent_id": batchID},
+		"options":     opts,
+		"count":       len(opts),
+		"round":       round + 1,
+		"seeded_from": seeds,
+	})
 }
 
 // --- swipe helpers ---
@@ -648,6 +889,34 @@ func buildSwipePrompt(layer string, count int, contextMD, projName, projSlug str
 
 type swipeHook struct {
 	Text string `json:"text"`
+}
+
+func buildSwipeEvolutionPrompt(layer string, count int, contextMD, projName, projSlug string, seeds, tasteTop []string) string {
+	kind := "short hooks"
+	if layer == "angle" {
+		kind = "short content angles"
+	}
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("Generate %d NEW %s in the spirit of what the user liked, JSON array [{\"text\": \"...\"}] — each <=120 chars, Russian, punchy, non-generic. JSON array only, no fence, no extra text.\n", count, kind))
+	if len(seeds) > 0 {
+		b.WriteString("The user liked these (do NOT repeat them, evolve the ideas):\n")
+		for _, sd := range seeds {
+			b.WriteString("- " + sd + "\n")
+		}
+	}
+	if len(tasteTop) > 0 {
+		b.WriteString("Taste keywords the user responds to: " + strings.Join(tasteTop, ", ") + "\n")
+	}
+	if strings.TrimSpace(contextMD) != "" {
+		b.WriteString("project_context:\n")
+		b.WriteString(contextMD)
+		b.WriteString("\n---\n")
+	}
+	if strings.TrimSpace(projName) != "" {
+		b.WriteString(fmt.Sprintf("project name: %s\n", projName))
+	}
+	b.WriteString(fmt.Sprintf("Return JSON array only, exactly %d items, each {\"text\": \"...\"}. No fence.", count))
+	return b.String()
 }
 
 func parseSwipeHooks(raw string) []string {
