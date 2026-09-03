@@ -176,7 +176,7 @@ export default function ProjectsPage() {
           <h1 style={{ fontSize: 22, margin: 0 }}>Projects</h1>
           <p style={{ opacity: 0.6, fontSize: 12, margin: "4px 0 0" }}>Own projects — used as <code>project_id</code> for content items and channel binding.</p>
         </div>
-        <button onClick={openCreate} style={btnPrimary}>+ New project</button>
+        <Link href="/settings/projects/new" style={{ ...btnPrimary, textDecoration: "none", display: "inline-block", textAlign: "center" }}>+ New project</Link>
       </div>
 
       {err && <div style={{ marginTop: 12, background: "rgba(255,60,60,.12)", border: "1px solid rgba(255,60,60,.3)", padding: "10px 12px", borderRadius: 10, color: "#ff8a8a", fontSize: 13 }}>{err}</div>}
@@ -185,7 +185,7 @@ export default function ProjectsPage() {
         <div style={{ ...cardStyle, marginTop: 16, textAlign: "center", padding: 32 }}>
           <p style={{ opacity: 0.6, fontSize: 14, margin: 0 }}>No projects yet.</p>
           <p style={{ opacity: 0.45, fontSize: 12, margin: "6px 0 0" }}>Create a project to start creating content items.</p>
-          <button onClick={openCreate} style={{ ...btnPrimary, marginTop: 16 }}>Create first project</button>
+          <Link href="/settings/projects/new" style={{ ...btnPrimary, marginTop: 16, textDecoration: "none", display: "inline-block" }}>Create first project</Link>
         </div>
       ) : (
         <div style={{ marginTop: 16, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, overflow: "hidden" }}>
