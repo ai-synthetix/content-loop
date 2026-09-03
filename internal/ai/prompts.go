@@ -49,6 +49,15 @@ func UserPlanTopic(title, existingTitles string) string {
 func UserBuildBrief(title, projectJSON, briefHint string) string {
 	return "build_brief input:\ntitle: " + trunc(title, 100) + "\nproject: " + trunc(projectJSON, 400) + "\nbrief_hint: " + trunc(briefHint, 500) + "\n" + PromptBuildBrief
 }
+func UserBuildBriefWithContext(title, projectJSON, contextMD, briefHint string) string {
+	// contextMD is project.context markdown — richest source for brief scaffolding
+	base := "build_brief input:\ntitle: " + trunc(title, 100) + "\nproject: " + trunc(projectJSON, 400)
+	if strings.TrimSpace(contextMD) != "" {
+		base += "\nproject_context:\n" + trunc(strings.TrimSpace(contextMD), 3000)
+	}
+	base += "\nbrief_hint: " + trunc(briefHint, 500) + "\n" + PromptBuildBrief
+	return base
+}
 func UserDraftCanonical(title, briefJSON string) string {
 	return "draft_canonical input:\ntitle: " + trunc(title, 100) + "\nbrief: " + trunc(briefJSON, 2000) + "\n" + PromptDraftCanonical
 }
@@ -129,6 +138,13 @@ func CleanAIisms(s string) string {
 // policyJSON is expected to be JSON (e.g. project.policy or full project JSON).
 // It extracts tone / banned_phrases / examples if present and injects them.
 func BuildDraftPromptWithPolicy(title, briefJSON, policyJSON string) string {
+	return BuildDraftPromptWithPolicyAndContext(title, briefJSON, policyJSON, "")
+}
+
+// BuildDraftPromptWithPolicyAndContext — same as above plus project.context markdown.
+// contextMD is project.context (plain markdown TEXT) — injected verbatim (truncated) as richest grounding source.
+// Source table is deprecated; context is the canonical project knowledge base.
+func BuildDraftPromptWithPolicyAndContext(title, briefJSON, policyJSON, contextMD string) string {
 	title = trunc(strings.TrimSpace(title), 100)
 	briefJSON = trunc(strings.TrimSpace(briefJSON), 2000)
 
@@ -222,6 +238,10 @@ func BuildDraftPromptWithPolicy(title, briefJSON, policyJSON string) string {
 			b.WriteString("\npolicy: ")
 			b.WriteString(rawSnippet)
 		}
+	}
+	if strings.TrimSpace(contextMD) != "" {
+		b.WriteString("\nproject_context:\n")
+		b.WriteString(trunc(strings.TrimSpace(contextMD), 4000))
 	}
 	b.WriteString("\n")
 	b.WriteString(PromptDraftCanonical)

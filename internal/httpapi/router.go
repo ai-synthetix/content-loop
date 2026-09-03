@@ -476,6 +476,23 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 	if _, ok := body["policy"]; !ok {
 		body["policy"] = map[string]any{}
 	}
+	// project.context — markdown knowledge base (TEXT NULL, plain string)
+	if v, ok := body["context"]; ok && v != nil {
+		if s, ok := v.(string); ok {
+			body["context"] = s
+		} else {
+			// coerce non-string (e.g. accidental object) to string
+			b, _ := json.Marshal(v)
+			// if it was JSON stringified JSON, keep raw if already string-like
+			if len(b) > 0 && b[0] == '"' {
+				var ss string
+				_ = json.Unmarshal(b, &ss)
+				body["context"] = ss
+			} else {
+				body["context"] = string(b)
+			}
+		}
+	}
 	// normalize languages to JSON string for DB if needed
 	if s.useDB() {
 		if langs, ok := body["languages"]; ok && langs != nil {
@@ -561,6 +578,20 @@ func (s *Server) updateProject(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.useDB() {
 		owner := ownerID(r)
+		// context is TEXT markdown — keep as plain string, do NOT JSON-marshal
+		if v, ok := patch["context"]; ok && v != nil {
+			if _, isStr := v.(string); !isStr {
+				if b, err := json.Marshal(v); err == nil {
+					if len(b) > 0 && b[0] == '"' {
+						var ss string
+						_ = json.Unmarshal(b, &ss)
+						patch["context"] = ss
+					} else {
+						patch["context"] = string(b)
+					}
+				}
+			}
+		}
 		marshalJSONFields(patch, "channels", "languages", "policy")
 		v, err := s.Store.Update("project", id, owner, patch)
 		if err != nil {
@@ -609,6 +640,9 @@ func (s *Server) deleteProject(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- project sources ---
+// Deprecated: source entity is kept for backward compat but ignored by generation.
+// New code should use project.context (markdown TEXT) as the canonical knowledge base.
+// Generation (buildBrief/draftCanonical) now reads project.context via extractProjectContext.
 
 func (s *Server) listProjectSources(w http.ResponseWriter, r *http.Request) {
 	projectID := chi.URLParam(r, "id")

@@ -19,6 +19,7 @@ export default function NewProjectPage() {
   const [slugDirty, setSlugDirty] = useState(false);
   const [langs, setLangs] = useState("ru, en");
   const [policy, setPolicy] = useState('{\n  "tone": "эксперт-дружелюбный",\n  "banned_phrases": [],\n  "examples": []\n}');
+  const [context, setContext] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -44,9 +45,11 @@ export default function NewProjectPage() {
     try {
       const token = getToken();
       if (!token) { router.replace("/login"); return; }
+      const body: any = { name: name.trim(), slug: finalSlug, languages: langsArr, channels: [], policy: policyObj };
+      if (context.trim()) body.context = context;
       const r = await fetch(apiUrl("/api/v1/projects/"), {
         method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ name: name.trim(), slug: finalSlug, languages: langsArr, channels: [], policy: policyObj }),
+        body: JSON.stringify(body),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || `create failed ${r.status}`);
@@ -87,6 +90,11 @@ export default function NewProjectPage() {
           <textarea value={policy} onChange={e => setPolicy(e.target.value)} rows={8} style={{ ...inp, fontFamily: "monospace", fontSize: 12, resize: "vertical" }} />
           <span style={{ fontSize: 11, opacity: 0.45 }}>tone / banned_phrases / examples — влияет на генерацию</span>
         </label>
+        <label style={{ display: "grid", gap: 6 }}>
+          <span style={labelStyle}>Context (markdown, optional)</span>
+          <textarea value={context} onChange={e => setContext(e.target.value)} rows={8} placeholder="Goals, audience, tone, key sources — markdown" style={{ ...inp, fontFamily: "monospace", fontSize: 12, resize: "vertical", minHeight: 120 }} />
+          <span style={{ fontSize: 11, opacity: 0.45 }}>Сохранится как project.context, используется для генерации</span>
+        </label>
 
         {err && <div style={{ background: "rgba(255,90,90,.1)", border: "1px solid rgba(255,90,90,.25)", color: "#FF8A8A", padding: "10px 12px", borderRadius: 10, fontSize: 12 }}>{err}</div>}
 
@@ -99,7 +107,7 @@ export default function NewProjectPage() {
       </form>
 
       <div style={{ marginTop: 12, fontSize: 11, color: "#5a6b86", background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 10, padding: "10px 12px" }}>
-        После создания — откроется страница проекта: добавь источники и запусти анализ AI.
+        После создания — откроется страница проекта: добавь контекст и запусти анализ AI.
       </div>
     </div>
   );

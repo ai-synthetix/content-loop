@@ -5,12 +5,10 @@ import { getToken, apiUrl, authHeaders, clearToken } from "../../../../lib/auth"
 import { CardSkeleton } from "../../../../components/Skeleton";
 
 type Channel = { id: string; type: string; name: string; project_id?: string | null; status: string };
-type Source = { id: string; url: string; title?: string | null; created_at?: string };
 
 const cardStyle: React.CSSProperties = { background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 16 };
 const inp: React.CSSProperties = { background: "#0b1420", border: "1px solid #1e2f44", borderRadius: 10, padding: "10px 12px", color: "#eee", outline: "none", width: "100%", fontSize: 13 };
 const btnPrimary: React.CSSProperties = { background: "#3D8DFF", color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700, cursor: "pointer" };
-const btnGhost: React.CSSProperties = { background: "#1a2636", border: "1px solid #2a3a52", color: "#8FA0B8", borderRadius: 10, padding: "8px 14px", cursor: "pointer", fontSize: 12 };
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -29,14 +27,12 @@ export default function ProjectDetail() {
   const [eMsg, setEMsg] = useState<string | null>(null);
   const [eErr, setEErr] = useState<string | null>(null);
 
-  // sources state
-  const [sources, setSources] = useState<Source[]>([]);
-  const [sUrl, setSUrl] = useState("");
-  const [sTitle, setSTitle] = useState("");
-  const [sSaving, setSSaving] = useState(false);
-  const [sErr, setSErr] = useState<string | null>(null);
-  const [sMsg, setSMsg] = useState<string | null>(null);
-  const [sLoading, setSLoading] = useState(true);
+  // context markdown editor state
+  const [ctx, setCtx] = useState("");
+  const [ctxTab, setCtxTab] = useState<"edit" | "preview">("edit");
+  const [ctxSaving, setCtxSaving] = useState(false);
+  const [ctxErr, setCtxErr] = useState<string | null>(null);
+  const [ctxMsg, setCtxMsg] = useState<string | null>(null);
 
   function prefillFromProject(p: any) {
     setEName(p.name || "");
@@ -56,23 +52,7 @@ export default function ProjectDetail() {
     } catch {
       setEPolicy(String(p.policy ?? "{}"));
     }
-  }
-
-  async function loadSources() {
-    const token = getToken();
-    if (!token) return;
-    setSLoading(true);
-    try {
-      const r = await fetch(apiUrl(`/api/v1/projects/${id}/sources`), { headers: { ...authHeaders() } });
-      if (r.status === 401) { clearToken(); router.replace("/login"); return; }
-      const d = await r.json().catch(() => ({ items: [] }));
-      if (!r.ok) throw new Error(d.error || `failed ${r.status}`);
-      setSources(d.items || d.sources || []);
-    } catch (e: any) {
-      setSErr(e.message);
-    } finally {
-      setSLoading(false);
-    }
+    setCtx(p.context ?? p.Context ?? "");
   }
 
   async function load() {
@@ -95,7 +75,7 @@ export default function ProjectDetail() {
     setAssigned(s);
   }
 
-  useEffect(() => { if (id) { load(); loadSources(); } }, [id]);
+  useEffect(() => { if (id) { load(); } }, [id]);
 
   async function toggle(channelId: string, checked: boolean) {
     setMsg(null);
@@ -150,44 +130,23 @@ export default function ProjectDetail() {
     finally { setESaving(false); }
   }
 
-  async function handleAddSource(e: React.FormEvent) {
+  async function handleSaveContext(e: React.FormEvent) {
     e.preventDefault();
-    setSErr(null); setSMsg(null);
-    if (!sUrl.trim()) { setSErr("URL is required"); return; }
-    setSSaving(true);
+    setCtxErr(null); setCtxMsg(null);
+    setCtxSaving(true);
     try {
-      const body: any = { url: sUrl.trim() };
-      if (sTitle.trim()) body.title = sTitle.trim();
-      const r = await fetch(apiUrl(`/api/v1/projects/${id}/sources`), {
-        method: "POST",
+      const r = await fetch(apiUrl(`/api/v1/projects/${id}`), {
+        method: "PATCH",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ context: ctx }),
       });
       const d = await r.json().catch(() => ({}));
       if (r.status === 401) { clearToken(); router.replace("/login"); return; }
-      if (!r.ok) throw new Error(d.error || `add failed ${r.status}`);
-      setSUrl(""); setSTitle("");
-      setSMsg("Source added");
-      await loadSources();
-    } catch (ex: any) { setSErr(ex.message); }
-    finally { setSSaving(false); }
-  }
-
-  async function handleDeleteSource(sourceId: string) {
-    setSErr(null); setSMsg(null);
-    try {
-      const r = await fetch(apiUrl(`/api/v1/projects/${id}/sources/${sourceId}`), {
-        method: "DELETE",
-        headers: { ...authHeaders() },
-      });
-      if (r.status === 401) { clearToken(); router.replace("/login"); return; }
-      if (!r.ok && r.status !== 204) {
-        const d = await r.json().catch(() => ({}));
-        throw new Error(d.error || `delete failed ${r.status}`);
-      }
-      setSources(prev => prev.filter(s => s.id !== sourceId));
-      setSMsg("Source deleted");
-    } catch (ex: any) { setSErr(ex.message); }
+      if (!r.ok) throw new Error(d.error || `save failed ${r.status}`);
+      setProject((prev: any) => ({ ...prev, context: ctx, ...d }));
+      setCtxMsg("Context saved");
+    } catch (ex: any) { setCtxErr(ex.message); }
+    finally { setCtxSaving(false); }
   }
 
   if (!project) return <div style={{display:"grid",gap:12}}><CardSkeleton /></div>;
@@ -243,35 +202,33 @@ export default function ProjectDetail() {
         }
       </div>
 
-      {/* Sources block */}
+      {/* Context markdown editor */}
       <div style={cardStyle}>
-        <h3 style={{ margin: "0 0 4px", fontSize: 15 }}>Sources</h3>
-        <p style={{ opacity: 0.6, fontSize: 12, marginTop: 0 }}>External URLs used as context for this project.</p>
-        {sErr && <div style={{ background: "rgba(255,60,60,.12)", border: "1px solid rgba(255,60,60,.3)", padding: "8px 10px", borderRadius: 8, color: "#ff8a8a", fontSize: 12, marginBottom: 8 }}>{sErr}</div>}
-        {sMsg && <div style={{ background: "rgba(60,255,120,.10)", border: "1px solid rgba(60,255,120,.25)", padding: "8px 10px", borderRadius: 8, color: "#7CFF9E", fontSize: 12, marginBottom: 8 }}>{sMsg}</div>}
-        {sLoading ? <div style={{ opacity: 0.6, fontSize: 12 }}>Loading sources…</div> : sources.length === 0 ? <p style={{ opacity: 0.6, fontSize: 12, margin: "8px 0" }}>No sources yet.</p> : (
-          <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
-            {sources.map(s => (
-              <div key={s.id} style={{ display: "flex", gap: 10, alignItems: "center", background: "#0b1420", border: "1px solid #1e2f44", borderRadius: 8, padding: "10px 12px" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, wordBreak: "break-all", color: "#8fb8ff" }}><a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: "#8fb8ff", textDecoration: "none" }}>{s.url}</a></div>
-                  {s.title && <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{s.title}</div>}
-                </div>
-                <button onClick={() => handleDeleteSource(s.id)} style={{ ...btnGhost, borderColor: "#5a2a2a", color: "#ff8a8a", whiteSpace: "nowrap" }}>Delete</button>
-              </div>
-            ))}
+        <h3 style={{ margin: "0 0 4px", fontSize: 15 }}>Project context</h3>
+        <p style={{ opacity: 0.6, fontSize: 12, marginTop: 0 }}>Markdown context used for generation. Saved via PATCH /api/v1/projects/{"{id}"} {"{context}"}.</p>
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <button type="button" onClick={() => setCtxTab("edit")} style={{ background: ctxTab === "edit" ? "#1d3a5a" : "#0B1420", border: `1px solid ${ctxTab === "edit" ? "#2a4a7a" : "#1e2f44"}`, color: ctxTab === "edit" ? "#cfe0ff" : "#8FA0B8", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Edit</button>
+          <button type="button" onClick={() => setCtxTab("preview")} style={{ background: ctxTab === "preview" ? "#1d3a5a" : "#0B1420", border: `1px solid ${ctxTab === "preview" ? "#2a4a7a" : "#1e2f44"}`, color: ctxTab === "preview" ? "#cfe0ff" : "#8FA0B8", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Preview</button>
+        </div>
+        <form onSubmit={handleSaveContext} style={{ display: "grid", gap: 10 }}>
+          {ctxTab === "edit" ? (
+            <textarea
+              value={ctx}
+              onChange={e => setCtx(e.target.value)}
+              rows={14}
+              placeholder="Enter project context in markdown (goals, audience, tone, sources, etc.)"
+              style={{ ...inp, fontFamily: "monospace", fontSize: 12, minHeight: 220, resize: "vertical", lineHeight: 1.5 }}
+            />
+          ) : (
+            <div style={{ background: "#0B1420", border: "1px solid #1e2f44", borderRadius: 10, padding: "12px 14px", minHeight: 220, maxHeight: 400, overflow: "auto", fontSize: 13, lineHeight: 1.6, color: "#cfe0ff", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              {ctx.trim() ? ctx : <span style={{ opacity: 0.4 }}>Nothing to preview</span>}
+            </div>
+          )}
+          {ctxErr && <div style={{ background: "rgba(255,60,60,.12)", border: "1px solid rgba(255,60,60,.3)", padding: "8px 10px", borderRadius: 8, color: "#ff8a8a", fontSize: 12 }}>{ctxErr}</div>}
+          {ctxMsg && <div style={{ background: "rgba(60,255,120,.10)", border: "1px solid rgba(60,255,120,.25)", padding: "8px 10px", borderRadius: 8, color: "#7CFF9E", fontSize: 12 }}>{ctxMsg}</div>}
+          <div>
+            <button type="submit" disabled={ctxSaving} style={{ ...btnPrimary, opacity: ctxSaving ? 0.6 : 1 }}>{ctxSaving ? "Saving…" : "Save context"}</button>
           </div>
-        )}
-        <form onSubmit={handleAddSource} style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
-          <label style={{ flex: "2 1 220px", display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 11, color: "#8FA0B8" }}>URL *</span>
-            <input value={sUrl} onChange={e => setSUrl(e.target.value)} placeholder="https://example.com/page" style={inp} />
-          </label>
-          <label style={{ flex: "1 1 160px", display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 11, color: "#8FA0B8" }}>Title (optional)</span>
-            <input value={sTitle} onChange={e => setSTitle(e.target.value)} placeholder="My source" style={inp} />
-          </label>
-          <button type="submit" disabled={sSaving} style={{ ...btnPrimary, opacity: sSaving ? 0.6 : 1, height: 38 }}>{sSaving ? "Adding…" : "Add"}</button>
         </form>
       </div>
     </div>

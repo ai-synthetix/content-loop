@@ -285,7 +285,8 @@ func (g *GenerationService) generateWithProgress(ctx context.Context, contentIte
 	// 3 draft 60%
 	update("draft", 60)
 	policyJSON := extractPolicyJSON(projectJSON)
-	canonical := g.draftCanonical(ctx, title, brief, policyJSON)
+	projectContext := extractProjectContext(projectJSON)
+	canonical := g.draftCanonical(ctx, title, brief, policyJSON, projectContext)
 	// 4 verify 80% (run verify before persist to report)
 	update("verify", 80)
 	vr := verify(canonical)
@@ -382,7 +383,8 @@ func (g *GenerationService) Generate(ctx context.Context, contentItemID, ownerUs
 
 	// 3. draft_canonical via AI
 	policyJSON := extractPolicyJSON(projectJSON)
-	canonical := g.draftCanonical(ctx, title, brief, policyJSON)
+	projectContext := extractProjectContext(projectJSON)
+	canonical := g.draftCanonical(ctx, title, brief, policyJSON, projectContext)
 
 	// 4. verify
 	vr := verify(canonical)
@@ -554,7 +556,9 @@ func (g *GenerationService) planTopic(ownerUserID, title, currentID string) *str
 }
 
 func (g *GenerationService) buildBrief(ctx context.Context, title, projectJSON, existingBrief string) map[string]any {
-	userMsg := ai.UserBuildBrief(title, projectJSON, existingBrief)
+	// project.context is the canonical knowledge base (markdown TEXT), replaces deprecated source table
+	contextMD := extractProjectContext(projectJSON)
+	userMsg := ai.UserBuildBriefWithContext(title, projectJSON, contextMD, existingBrief)
 	resp, err := g.AI.Complete(ctx, ai.SystemBase, userMsg)
 	if err != nil {
 		log.Printf("[generation] buildBrief Complete error title=%q err=%v", title, err)
@@ -622,7 +626,40 @@ func extractPolicyJSON(projectJSON string) string {
 	return ""
 }
 
-func (g *GenerationService) draftCanonical(ctx context.Context, title string, brief map[string]any, policyJSON string) canonicalDraft {
+func extractProjectContext(projectJSON string) string {
+	if strings.TrimSpace(projectJSON) == "" || projectJSON == "{}" {
+		return ""
+	}
+	var raw map[string]any
+	if err := json.Unmarshal([]byte(projectJSON), &raw); err != nil {
+		return ""
+	}
+	if v, ok := raw["context"]; ok && v != nil {
+		switch cv := v.(type) {
+		case string:
+			return strings.TrimSpace(cv)
+		case []byte:
+			return strings.TrimSpace(string(cv))
+		default:
+			// e.g. raw TEXT column came as stringified JSON? handle via marshal
+			if b, err := json.Marshal(cv); err == nil {
+				var s string
+				if err := json.Unmarshal(b, &s); err == nil {
+					return s
+				}
+				return string(b)
+			}
+		}
+	}
+	return ""
+}
+
+func (g *GenerationService) draftCanonical(ctx context.Context, title string, brief map[string]any, policyJSON string, projectContext ...string) canonicalDraft {
+	// project.context replaces deprecated source table — passed via variadic for backward compat
+	var contextMD string
+	if len(projectContext) > 0 {
+		contextMD = projectContext[0]
+	}
 	// truncate inputs dramatically to avoid gateway timeout (was whole project JSON)
 	if len(title) > 100 {
 		title = string([]rune(title)[:100])
@@ -634,7 +671,7 @@ func (g *GenerationService) draftCanonical(ctx context.Context, title string, br
 	}
 	// policy-aware prompt + human system prompt
 	systemPrompt := ai.HumanSystemPrompt(extractTone(policyJSON))
-	userMsg := ai.BuildDraftPromptWithPolicy(title, bj, policyJSON)
+	userMsg := ai.BuildDraftPromptWithPolicyAndContext(title, bj, policyJSON, contextMD)
 	resp, err := g.AI.Complete(ctx, systemPrompt, userMsg)
 	if err != nil {
 		log.Printf("[generation] draftCanonical Complete error title=%q err=%v full_err=%+v", title, err, err)
@@ -647,7 +684,7 @@ func (g *GenerationService) draftCanonical(ctx context.Context, title string, br
 		if len(smallTitle) > 60 {
 			smallTitle = string([]rune(smallTitle)[:60])
 		}
-		smallMsg := ai.BuildDraftPromptWithPolicy(smallTitle, smallerBrief, policyJSON)
+		smallMsg := ai.BuildDraftPromptWithPolicyAndContext(smallTitle, smallerBrief, policyJSON, contextMD)
 		// short inline prompt override: request even shorter output
 		smallMsg += "\nKeep body_markdown under 800 words, be very concise."
 		log.Printf("[generation] draftCanonical retry with smaller prompt title=%q brief_len=%d", smallTitle, len(smallerBrief))
