@@ -74,7 +74,7 @@ func (s *Server) handleGenerateCandidates(w http.ResponseWriter, r *http.Request
 		}
 	}
 	contextMD = strings.TrimSpace(contextMD)
-	if len(contextMD) > 4000 {
+	if len([]rune(contextMD)) > 4000 {
 		contextMD = string([]rune(contextMD)[:4000])
 	}
 
@@ -386,7 +386,7 @@ func (s *Server) handleGenerateCandidatesMemory(w http.ResponseWriter, r *http.R
 		}
 	}
 	contextMD = strings.TrimSpace(contextMD)
-	if len(contextMD) > 4000 {
+	if len([]rune(contextMD)) > 4000 {
 		contextMD = string([]rune(contextMD)[:4000])
 	}
 	userMsg := buildCandidatePrompt(count, contextMD, projName, projSlug)
