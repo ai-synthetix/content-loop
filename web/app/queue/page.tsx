@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getToken, authHeaders, apiUrl, clearToken } from "../../lib/auth";
+import { useActiveProject } from "../../lib/activeProject";
 import { StatusBadge } from "../../components/StatusBadge";
 import { Skeleton, CardSkeleton } from "../../components/Skeleton";
 import { GenerationProgress, type Job } from "../../components/GenerationStatus";
@@ -47,11 +48,11 @@ function slugify(s: string) {
 
 export default function Page() {
   const router = useRouter();
+  const { activeId } = useActiveProject();
   const [items, setItems] = useState<Item[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  // jobs kept only for optimistic Retry display — no auto-polling on Queue
   const [jobs, setJobs] = useState<Record<string, Job>>({});
 
   // modal state
@@ -61,7 +62,6 @@ export default function Page() {
   const [slugDirty, setSlugDirty] = useState(false);
   const [brief, setBrief] = useState("");
   const [projectId, setProjectId] = useState("");
-  const [filterProject, setFilterProject] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [submitting, setSubmitting] = useState(false);
   const [formErr, setFormErr] = useState<string | null>(null);
@@ -72,12 +72,8 @@ export default function Page() {
     const d = await r.json().catch(() => ({ items: [] }));
     const list: Project[] = d.items || d || [];
     setProjects(Array.isArray(list) ? list : []);
-    if (list.length > 0 && !projectId) {
-      const first = (list as Project[])[0];
-      if (first?.id) setProjectId(first.id);
-    }
-    return list;
-  }, [router, projectId]);
+    return Array.isArray(list) ? list : [];
+  }, [router]);
 
   const fetchItems = useCallback(async () => {
     const r = await fetch(apiUrl("/api/v1/content-items/"), { headers: { ...authHeaders() } });
@@ -96,6 +92,20 @@ export default function Page() {
       .finally(() => setLoading(false));
   }, [router, fetchItems, fetchProjects]);
 
+  // sync new-item projectId with activeId
+  useEffect(() => {
+    if (activeId && !projectId) setProjectId(activeId);
+    else if (activeId && projectId !== activeId) {
+      // when active project changes, default new item to it (but don't override if user already picked different)
+      // we update only if modal not open to avoid surprising user
+      if (!showModal) setProjectId(activeId);
+    }
+  }, [activeId, projectId, showModal]);
+
+  useEffect(() => {
+    if (showModal && activeId && !projectId) setProjectId(activeId);
+  }, [showModal, activeId, projectId]);
+
   function onTitleChange(v: string) {
     setTitle(v);
     if (!slugDirty) setSlug(slugify(v));
@@ -107,7 +117,6 @@ export default function Page() {
       await fetch(apiUrl(`/api/v1/content-items/${contentItemId}/generate`), {
         method: "POST", headers: { ...authHeaders() },
       });
-      // optimistic pending — will be verified on detail page; Queue does not poll
       setJobs((prev) => ({ ...prev, [contentItemId]: { id: "temp", content_item_id: contentItemId, owner_user_id: "", status: "pending", step: "plan_topic", progress: 5 } }));
       setTimeout(async () => {
         try {
@@ -126,7 +135,8 @@ export default function Page() {
     e.preventDefault();
     setFormErr(null);
     if (!title.trim()) { setFormErr("Title is required"); return; }
-    if (!projectId) { setFormErr("Project is required — select one or create at /projects"); return; }
+    const pid = projectId || activeId || "";
+    if (!pid) { setFormErr("Project is required — select one or create at /projects"); return; }
     const finalSlug = slug.trim() ? slugify(slug) : slugify(title);
     setSubmitting(true);
     try {
@@ -137,7 +147,7 @@ export default function Page() {
           title: title.trim(),
           slug: finalSlug,
           brief: { raw: brief.trim() },
-          project_id: projectId,
+          project_id: pid,
           status: "idea",
         }),
       });
@@ -171,6 +181,12 @@ export default function Page() {
     } finally { setSubmitting(false); }
   }
 
+  // filtered by active project + status
+  const filteredByProject = (list: Item[]) => list.filter(it => !activeId || (it as any).project_id === activeId);
+  const statusFiltered = (list: Item[]) => list.filter(it => filterStatus === "all" || it.status === filterStatus);
+  const visibleItems = statusFiltered(filteredByProject(items));
+  const pipelineBase = filteredByProject(items);
+
   if (loading) return <div style={{ display: "grid", gap: 10 }}><Skeleton style={{ height: 28, width: 180 }} /><CardSkeleton /><CardSkeleton /><CardSkeleton /></div>;
   if (err) return <div style={{ background: "rgba(255,60,60,.12)", border: "1px solid rgba(255,60,60,.3)", padding: 16, borderRadius: 12, color: "#ff8a8a" }}><strong>Failed to load</strong><div style={{ fontSize: 12, marginTop: 6 }}>{err}</div><div style={{ marginTop: 12, display: "flex", gap: 8 }}><button onClick={() => location.reload()} style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#cfe0ff", borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Retry</button><button onClick={() => { clearToken(); router.replace("/login"); }} style={{ background: "#33151a", border: "1px solid #5a2a33", color: "#ff8a8a", borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Re-login</button></div></div>;
 
@@ -179,25 +195,28 @@ export default function Page() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div>
           <h1 style={{ fontSize: 22, margin: 0, display: "flex", alignItems: "center", gap: 10 }}><span style={{ width: 32, height: 32, borderRadius: 10, background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", display: "grid", placeItems: "center", fontSize: 16 }}>🌀</span>Queue</h1>
-          <p style={{ opacity: 0.6, fontSize: 12, margin: "6px 0 0" }}>{items.length} items · pipeline <span style={{ color: "#8FB8FF" }}>idea → brief → draft → review → published → reflected</span></p>
+          <p style={{ opacity: 0.6, fontSize: 12, margin: "6px 0 0" }}>{items.length} items · pipeline <span style={{ color: "#8FB8FF" }}>idea → brief → draft → review → published → reflected</span>{activeId ? <span style={{ opacity: 0.8 }}> · проект: <strong style={{ color: "#cfe0ff" }}>{projects.find(p=>p.id===activeId)?.name || activeId.slice(0,8)}</strong></span> : null}</p>
         </div>
         <button
-          onClick={() => { setFormErr(null); setShowModal(true); if (projects.length===0) fetchProjects().catch(()=>{}); }}
+          onClick={() => { setFormErr(null); setShowModal(true); if (projects.length===0) fetchProjects().catch(()=>{}); if (activeId) setProjectId(activeId); }}
           style={{ background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", boxShadow: "0 4px 16px rgba(61,141,255,.35)" }}
         >
           + New item
         </button>
       </div>
 
-      {/* filters */}
-      <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 10, padding: "6px 10px" }}>
-          <span style={{ fontSize: 11, color: "#8FA0B8", fontWeight: 600 }}>Project</span>
-          <select value={filterProject} onChange={e => setFilterProject(e.target.value)} style={{ background: "#0B1420", border: "1px solid #1e2f44", borderRadius: 8, padding: "6px 10px", color: "#eee", fontSize: 12, outline: "none" }}>
-            <option value="all">All projects</option>
-            {projects.map(p => <option key={p.id} value={p.id}>{p.name || p.slug || p.id.slice(0, 8)}</option>)}
-          </select>
+      {/* banner if no active project */}
+      {!activeId && (
+        <div style={{ marginTop: 14, background: "rgba(255,184,77,.12)", border: "1px solid rgba(255,184,77,.3)", color: "#ffcf7a", borderRadius: 12, padding: "12px 14px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "space-between" }}>
+          <div style={{ fontSize: 13 }}>
+            <strong>Выберите проект</strong> — активный проект не выбран. Данные показываются без фильтра. Выберите проект в шапке или <Link href="/projects" style={{ color: "#ffcf7a", textDecoration: "underline" }}>создайте новый</Link>.
+          </div>
+          <Link href="/projects" style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#8fb8ff", borderRadius: 8, padding: "6px 12px", textDecoration: "none", fontSize: 12, fontWeight: 700 }}>К проектам →</Link>
         </div>
+      )}
+
+      {/* filters — status only, project comes from ActiveProject context */}
+      <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 10, padding: "6px 10px" }}>
           <span style={{ fontSize: 11, color: "#8FA0B8", fontWeight: 600 }}>Status</span>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ background: "#0B1420", border: "1px solid #1e2f44", borderRadius: 8, padding: "6px 10px", color: "#eee", fontSize: 12, outline: "none" }}>
@@ -205,17 +224,17 @@ export default function Page() {
             <option value="idea">idea</option><option value="brief_ready">brief_ready</option><option value="drafting">drafting</option><option value="review_ready">review_ready</option><option value="approved">approved</option><option value="published">published</option><option value="measuring">measuring</option><option value="reflected">reflected</option>
           </select>
         </div>
-        {(filterProject !== "all" || filterStatus !== "all") && <button onClick={() => { setFilterProject("all"); setFilterStatus("all"); }} style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#8FB8FF", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}>Reset</button>}
-        <span style={{ fontSize: 11, opacity: 0.45, marginLeft: "auto" }}>{(() => { const f = items.filter(it => (filterProject === "all" || (it as any).project_id === filterProject) && (filterStatus === "all" || it.status === filterStatus)); return `${f.length}/${items.length} shown`; })()}</span>
+        {filterStatus !== "all" && <button onClick={() => setFilterStatus("all")} style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#8FB8FF", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}>Reset</button>}
+        <span style={{ fontSize: 11, opacity: 0.45, marginLeft: "auto" }}>{`${visibleItems.length}/${pipelineBase.length} shown${activeId ? "" : ` · ${items.length} total`}`}</span>
       </div>
 
       {/* pipeline summary — clickable filter (icons stay on top, but also filter by click) */}
       <div style={{ marginTop: 12, background: "linear-gradient(135deg,#0f1620 0%,#111d2e 100%)", border: "1px solid #1e2f44", borderRadius: 14, padding: "14px 14px 10px", overflowX: "auto" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 0, minWidth: 640 }}>
           {PIPELINE_STEPS.map((s, i, arr) => {
-            const c = items.filter(it => (filterProject === "all" || (it as any).project_id === filterProject) && it.status === s.k).length;
-            const count = s.k === "drafting" ? items.filter(it => (filterProject === "all" || (it as any).project_id === filterProject) && (it.status === "drafting" || it.status === "queued")).length
-              : s.k === "published" ? items.filter(it => (filterProject === "all" || (it as any).project_id === filterProject) && ["publishing","published","partially_published","failed"].includes(it.status || "")).length
+            const c = pipelineBase.filter(it => it.status === s.k).length;
+            const count = s.k === "drafting" ? pipelineBase.filter(it => it.status === "drafting" || it.status === "queued").length
+              : s.k === "published" ? pipelineBase.filter(it => ["publishing","published","partially_published","failed"].includes(it.status || "")).length
               : c;
             const has = count > 0;
             const isSelected = filterStatus === s.k;
@@ -244,11 +263,15 @@ export default function Page() {
           <p style={{ opacity: 0.6, fontSize: 12, margin: "0 0 12px" }}>Create your first item (+ New item) or learn the flow in the guide.</p>
           <Link href="/guide" style={{ background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color: "#fff", borderRadius: 10, padding: "8px 14px", textDecoration: "none", fontWeight: 700, fontSize: 13, display: "inline-block" }}>Open Guide →</Link>
         </div>
+      ) : visibleItems.length === 0 ? (
+        <div style={{ marginTop: 16, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 18, textAlign: "center" }}>
+          <div style={{ fontSize: 14, color: "#cfe0ff", marginBottom: 6 }}>No items for this filter</div>
+          <p style={{ opacity: 0.6, fontSize: 12, margin: "0 0 12px" }}>{activeId ? "В активном проекте нет элементов с таким статусом." : "Нет элементов."} Попробуй сбросить фильтр или создать новый.</p>
+        </div>
       ) : (
         <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
-          {items.filter(it => (filterProject === "all" || (it as any).project_id === filterProject) && (filterStatus === "all" || it.status === filterStatus)).map((it) => {
+          {visibleItems.map((it) => {
             const job = jobs[it.id] || null;
-            // static display only for jobs triggered via Retry on this page — no polling
             const showJob = job && (job.status === "pending" || job.status === "running" || job.status === "failed");
             const isActive = job?.status === "pending" || job?.status === "running";
             return (

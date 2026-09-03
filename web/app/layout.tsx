@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Header } from "../components/Header";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { GlobalGenerationBar } from "../components/GlobalGenerationBar";
+import { ActiveProjectProvider } from "../lib/activeProject";
 
 export const metadata: Metadata = {
   title: { default: "SwipeLoop", template: "%s — SwipeLoop" },
@@ -31,11 +32,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>
       <body style={{ fontFamily: "system-ui, sans-serif", margin: 0, background: "var(--bg)", color: "var(--fg)" }}>
-        <GlobalGenerationBar />
-        <Header />
-        <main style={{ padding: 20, maxWidth: 1320, margin: "0 auto" }}>
-          <ErrorBoundary>{children}</ErrorBoundary>
-        </main>
+        <ActiveProjectProvider>
+          <GlobalGenerationBar />
+          <Header />
+          <main style={{ padding: 20, maxWidth: 1320, margin: "0 auto" }}>
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </main>
+        </ActiveProjectProvider>
       </body>
     </html>
   );

@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getToken, authHeaders, apiUrl, clearToken } from "../../lib/auth";
+import { useActiveProject } from "../../lib/activeProject";
 import { StatusBadge } from "../../components/StatusBadge";
 import { Skeleton } from "../../components/Skeleton";
 
@@ -43,8 +44,8 @@ export default function SwipePage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // filters
-  const [filterProject, setFilterProject] = useState<string>("all");
+  const { activeId } = useActiveProject();
+  // filters — project comes from ActiveProject context
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
   // mode
@@ -105,17 +106,17 @@ export default function SwipePage() {
 
   const filtered = useMemo(() => {
     return items.filter((it) => {
-      if (filterProject !== "all" && (it as any).project_id !== filterProject) return false;
+      if (activeId && (it as any).project_id !== activeId) return false;
       if (filterStatus !== "all" && (it.status || "").toLowerCase() !== filterStatus) return false;
       return true;
     });
-  }, [items, filterProject, filterStatus]);
+  }, [items, activeId, filterStatus]);
 
-  // reset indexes when filter/mode changes
+  // reset indexes when filter/mode/activeId changes
   useEffect(() => {
     setLikeIndex(0);
     setPair(null);
-  }, [filterProject, filterStatus, mode]);
+  }, [activeId, filterStatus, mode]);
 
   // pick random pair when filtered changes or after action
   useEffect(() => {
@@ -331,23 +332,18 @@ export default function SwipePage() {
         </div>
       </div>
 
-      {/* filters */}
-      <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 10, padding: "6px 10px" }}>
-          <span style={{ fontSize: 11, color: "#8FA0B8", fontWeight: 600 }}>Project</span>
-          <select
-            value={filterProject}
-            onChange={(e) => setFilterProject(e.target.value)}
-            style={{ background: "#0B1420", border: "1px solid #1e2f44", borderRadius: 8, padding: "6px 10px", color: "#eee", fontSize: 12, outline: "none", minWidth: 140 }}
-          >
-            <option value="all">All projects</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name || p.slug || p.id.slice(0, 8)}
-              </option>
-            ))}
-          </select>
+      {!activeId && (
+        <div style={{ marginTop: 14, background: "rgba(255,184,77,.12)", border: "1px solid rgba(255,184,77,.3)", color: "#ffcf7a", borderRadius: 12, padding: "12px 14px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "space-between" }}>
+          <div style={{ fontSize: 13 }}>
+            <strong>Выберите проект</strong> — активный проект не выбран. Свайп показывает все проекты. Выберите проект в шапке или <Link href="/projects" style={{ color: "#ffcf7a", textDecoration: "underline" }}>создайте новый</Link>.
+          </div>
+          <Link href="/projects" style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#8fb8ff", borderRadius: 8, padding: "6px 12px", textDecoration: "none", fontSize: 12, fontWeight: 700 }}>К проектам →</Link>
         </div>
+      )}
+
+      {/* filters — status only, project from ActiveProject context */}
+      <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        {activeId && <span style={{ fontSize: 11, color: "#8FA0B8", background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 10, padding: "6px 10px" }}>Проект: <strong style={{ color: "#cfe0ff" }}>{projects.find(p=>p.id===activeId)?.name || activeId.slice(0,8)}</strong></span>}
         <div style={{ display: "flex", gap: 8, alignItems: "center", background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 10, padding: "6px 10px" }}>
           <span style={{ fontSize: 11, color: "#8FA0B8", fontWeight: 600 }}>Status</span>
           <select
@@ -365,12 +361,9 @@ export default function SwipePage() {
             <option value="changes_requested">changes_requested</option>
           </select>
         </div>
-        {(filterProject !== "all" || filterStatus !== "all") && (
+        {filterStatus !== "all" && (
           <button
-            onClick={() => {
-              setFilterProject("all");
-              setFilterStatus("all");
-            }}
+            onClick={() => setFilterStatus("all")}
             style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#8FB8FF", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}
           >
             Reset
@@ -427,10 +420,7 @@ export default function SwipePage() {
           <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
             <Link href="/queue" style={{ background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color: "#fff", borderRadius: 10, padding: "8px 16px", textDecoration: "none", fontWeight: 700, fontSize: 13 }}>→ Queue</Link>
             <button
-              onClick={() => {
-                setFilterProject("all");
-                setFilterStatus("all");
-              }}
+              onClick={() => setFilterStatus("all")}
               style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#cfe0ff", borderRadius: 10, padding: "8px 16px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
             >
               Сбросить фильтры
