@@ -186,6 +186,7 @@ func NewRouterWithConfig(cfg Config) http.Handler {
 					r.Post("/", s.createProjectSource)
 					r.Delete("/{sourceId}", s.deleteProjectSource)
 				})
+				r.Post("/{id}/generate-candidates", s.handleGenerateCandidates)
 			})
 			r.Route("/content-items", func(r chi.Router) {
 				r.Get("/", s.listContentItems)

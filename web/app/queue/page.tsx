@@ -37,15 +37,6 @@ function pipelineIndexForStatus(status: string): number {
 type Item = { id: string; title?: string; status?: string; slug?: string; project_id?: string; created_at?: string };
 type Project = { id: string; name?: string; slug?: string };
 
-function slugify(s: string) {
-  return s
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\u00C0-\u024F\u0400-\u04FF]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80) || "untitled";
-}
-
 export default function Page() {
   const router = useRouter();
   const { activeId } = useActiveProject();
@@ -54,17 +45,10 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [jobs, setJobs] = useState<Record<string, Job>>({});
-
-  // modal state
-  const [showModal, setShowModal] = useState(false);
-  const [title, setTitle] = useState("");
-  const [slug, setSlug] = useState("");
-  const [slugDirty, setSlugDirty] = useState(false);
-  const [brief, setBrief] = useState("");
-  const [projectId, setProjectId] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [submitting, setSubmitting] = useState(false);
-  const [formErr, setFormErr] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [genErr, setGenErr] = useState<string | null>(null);
+  const [genOk, setGenOk] = useState<number | null>(null);
 
   const fetchProjects = useCallback(async () => {
     const r = await fetch(apiUrl("/api/v1/projects/"), { headers: { ...authHeaders() } });
@@ -83,6 +67,26 @@ export default function Page() {
     return (d.items || []) as Item[];
   }, [router]);
 
+  const handleGenerateCandidates = useCallback(async () => {
+    if (!activeId) return;
+    setGenErr(null); setGenOk(null); setGenerating(true);
+    try {
+      const r = await fetch(apiUrl(`/api/v1/projects/${activeId}/generate-candidates`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ count: 5 }),
+      });
+      if (r.status === 401) { clearToken(); router.replace("/login"); return; }
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `generate failed ${r.status}`);
+      const created = (d.items || d || []) as Item[];
+      setGenOk(Array.isArray(created) ? created.length : (d.count ?? 5));
+      await fetchItems();
+    } catch (e: any) {
+      setGenErr(e.message || String(e));
+    } finally { setGenerating(false); }
+  }, [activeId, router, fetchItems]);
+
   // Single fetch on mount only — no per-item generation-status polling on Queue
   useEffect(() => {
     const token = getToken();
@@ -91,25 +95,6 @@ export default function Page() {
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
   }, [router, fetchItems, fetchProjects]);
-
-  // sync new-item projectId with activeId
-  useEffect(() => {
-    if (activeId && !projectId) setProjectId(activeId);
-    else if (activeId && projectId !== activeId) {
-      // when active project changes, default new item to it (but don't override if user already picked different)
-      // we update only if modal not open to avoid surprising user
-      if (!showModal) setProjectId(activeId);
-    }
-  }, [activeId, projectId, showModal]);
-
-  useEffect(() => {
-    if (showModal && activeId && !projectId) setProjectId(activeId);
-  }, [showModal, activeId, projectId]);
-
-  function onTitleChange(v: string) {
-    setTitle(v);
-    if (!slugDirty) setSlug(slugify(v));
-  }
 
   async function handleRetryGenerate(contentItemId: string, e?: React.MouseEvent) {
     if (e) { e.preventDefault(); e.stopPropagation(); }
@@ -131,56 +116,6 @@ export default function Page() {
     } catch {}
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setFormErr(null);
-    if (!title.trim()) { setFormErr("Title is required"); return; }
-    const pid = projectId || activeId || "";
-    if (!pid) { setFormErr("Project is required — select one or create at /projects"); return; }
-    const finalSlug = slug.trim() ? slugify(slug) : slugify(title);
-    setSubmitting(true);
-    try {
-      const res = await fetch(apiUrl("/api/v1/content-items/"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({
-          title: title.trim(),
-          slug: finalSlug,
-          brief: { raw: brief.trim() },
-          project_id: pid,
-          status: "idea",
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `create failed ${res.status}`);
-      const id = data.id as string;
-      if (id) {
-        try {
-          const r2 = await fetch(apiUrl(`/api/v1/content-items/${id}/brief`), {
-            method: "POST", headers: { ...authHeaders() },
-          });
-          if (!r2.ok) {
-            await fetch(apiUrl(`/api/v1/content-items/${id}/generate`), {
-              method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
-              body: JSON.stringify({}),
-            }).catch(() => {});
-          }
-        } catch {}
-        try {
-          await fetch(apiUrl(`/api/v1/content-items/${id}/generate`), {
-            method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
-            body: JSON.stringify({}),
-          }).catch(() => {});
-        } catch {}
-      }
-      await fetchItems();
-      setShowModal(false);
-      setTitle(""); setSlug(""); setSlugDirty(false); setBrief("");
-    } catch (e: any) {
-      setFormErr(e.message);
-    } finally { setSubmitting(false); }
-  }
-
   // filtered by active project + status
   const filteredByProject = (list: Item[]) => list.filter(it => !activeId || (it as any).project_id === activeId);
   const statusFiltered = (list: Item[]) => list.filter(it => filterStatus === "all" || it.status === filterStatus);
@@ -197,12 +132,12 @@ export default function Page() {
           <h1 style={{ fontSize: 22, margin: 0, display: "flex", alignItems: "center", gap: 10 }}><span style={{ width: 32, height: 32, borderRadius: 10, background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", display: "grid", placeItems: "center", fontSize: 16 }}>🌀</span>Queue</h1>
           <p style={{ opacity: 0.6, fontSize: 12, margin: "6px 0 0" }}>{items.length} items · pipeline <span style={{ color: "#8FB8FF" }}>idea → brief → draft → review → published → reflected</span>{activeId ? <span style={{ opacity: 0.8 }}> · проект: <strong style={{ color: "#cfe0ff" }}>{projects.find(p=>p.id===activeId)?.name || activeId.slice(0,8)}</strong></span> : null}</p>
         </div>
-        <button
-          onClick={() => { setFormErr(null); setShowModal(true); if (projects.length===0) fetchProjects().catch(()=>{}); if (activeId) setProjectId(activeId); }}
-          style={{ background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", boxShadow: "0 4px 16px rgba(61,141,255,.35)" }}
+        <Link
+          href="/queue/new"
+          style={{ background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", boxShadow: "0 4px 16px rgba(61,141,255,.35)", textDecoration: "none", display: "inline-block" }}
         >
           + New item
-        </button>
+        </Link>
       </div>
 
       {/* banner if no active project */}
@@ -257,18 +192,50 @@ export default function Page() {
         {filterStatus !== "all" && <div style={{ marginTop: 8, textAlign: "center", fontSize: 11, color: "#8FB8FF" }}>Filtering by <strong>{PIPELINE_STEPS.find(s=>s.k===filterStatus)?.label ?? filterStatus}</strong> · <button onClick={()=>setFilterStatus("all")} style={{ background:"none", border:"none", color:"#6DCBF4", cursor:"pointer", textDecoration:"underline", fontSize:11, padding:0 }}>clear</button></div>}
       </div>
 
-      {items.length === 0 ? (
-        <div style={{ marginTop: 16, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 18, textAlign: "center" }}>
-          <div style={{ fontSize: 14, color: "#cfe0ff", marginBottom: 6 }}>No items yet</div>
-          <p style={{ opacity: 0.6, fontSize: 12, margin: "0 0 12px" }}>Create your first item (+ New item) or learn the flow in the guide.</p>
-          <Link href="/guide" style={{ background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color: "#fff", borderRadius: 10, padding: "8px 14px", textDecoration: "none", fontWeight: 700, fontSize: 13, display: "inline-block" }}>Open Guide →</Link>
-        </div>
-      ) : visibleItems.length === 0 ? (
-        <div style={{ marginTop: 16, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 18, textAlign: "center" }}>
-          <div style={{ fontSize: 14, color: "#cfe0ff", marginBottom: 6 }}>No items for this filter</div>
-          <p style={{ opacity: 0.6, fontSize: 12, margin: "0 0 12px" }}>{activeId ? "В активном проекте нет элементов с таким статусом." : "Нет элементов."} Попробуй сбросить фильтр или создать новый.</p>
-        </div>
-      ) : (
+      {(() => {
+        const emptyForActive = pipelineBase.length === 0 && !!activeId;
+        if (emptyForActive) {
+          return (
+            <div style={{ marginTop: 16, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 18, textAlign: "center" }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>💡</div>
+              <div style={{ fontSize: 14, color: "#cfe0ff", fontWeight: 700, marginBottom: 6 }}>Нет тем для свайпа</div>
+              <p style={{ opacity: 0.6, fontSize: 12, margin: "0 0 14px", maxWidth: 420, marginLeft: "auto", marginRight: "auto" }}>
+                Для проекта <strong style={{ color: "#8FB8FF" }}>{projects.find(p=>p.id===activeId)?.name || activeId.slice(0,8)}</strong> пока нет записей. Сгенерируйте 5 тем из контекста проекта и свайпайте их на <code style={{ background:"#0B1420", border:"1px solid #1e2f44", padding:"1px 6px", borderRadius:6 }}>/swipe</code>.
+              </p>
+              {genErr && <div style={{ background:"rgba(255,60,60,.12)", border:"1px solid rgba(255,60,60,.3)", color:"#ff8a8a", padding:"8px 10px", borderRadius:10, fontSize:12, marginBottom:10 }}>{genErr}</div>}
+              {genOk !== null && !genErr && <div style={{ background:"rgba(61,255,120,.12)", border:"1px solid rgba(61,255,120,.3)", color:"#6fdc8c", padding:"8px 10px", borderRadius:10, fontSize:12, marginBottom:10 }}>Создано {genOk} тем — <Link href="/swipe" style={{ color:"#6fdc8c", textDecoration:"underline" }}>перейти в Swipe →</Link></div>}
+              <div style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap" }}>
+                <button
+                  onClick={handleGenerateCandidates}
+                  disabled={generating}
+                  style={{ background: generating ? "#2a4a7a" : "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color:"#fff", border:"none", borderRadius:10, padding:"10px 18px", fontWeight:700, cursor: generating ? "wait" : "pointer", opacity: generating ? 0.7 : 1, boxShadow:"0 4px 16px rgba(61,141,255,.35)" }}
+                >
+                  {generating ? "Генерируем…" : "Генерировать 5 тем из контекста"}
+                </button>
+                <Link href="/swipe" style={{ background:"#1a2636", border:"1px solid #2a3a52", color:"#8fb8ff", borderRadius:10, padding:"10px 14px", textDecoration:"none", fontWeight:600, fontSize:13, display:"inline-block" }}>В Swipe →</Link>
+                <Link href="/guide" style={{ background:"#1a2636", border:"1px solid #2a3a52", color:"#8FA0B8", borderRadius:10, padding:"10px 14px", textDecoration:"none", fontWeight:600, fontSize:13, display:"inline-block" }}>Гайд →</Link>
+              </div>
+            </div>
+          );
+        }
+        if (items.length === 0) {
+          return (
+            <div style={{ marginTop: 16, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 18, textAlign: "center" }}>
+              <div style={{ fontSize: 14, color: "#cfe0ff", marginBottom: 6 }}>No items yet</div>
+              <p style={{ opacity: 0.6, fontSize: 12, margin: "0 0 12px" }}>Create your first item (+ New item) or learn the flow in the guide.</p>
+              <Link href="/guide" style={{ background: "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color: "#fff", borderRadius: 10, padding: "8px 14px", textDecoration: "none", fontWeight: 700, fontSize: 13, display: "inline-block" }}>Open Guide →</Link>
+            </div>
+          );
+        }
+        if (visibleItems.length === 0) {
+          return (
+            <div style={{ marginTop: 16, background: "#0f1620", border: "1px solid #1e2f44", borderRadius: 12, padding: 18, textAlign: "center" }}>
+              <div style={{ fontSize: 14, color: "#cfe0ff", marginBottom: 6 }}>No items for this filter</div>
+              <p style={{ opacity: 0.6, fontSize: 12, margin: "0 0 12px" }}>{activeId ? "В активном проекте нет элементов с таким статусом." : "Нет элементов."} Попробуй сбросить фильтр или создать новый.</p>
+            </div>
+          );
+        }
+        return (
         <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
           {visibleItems.map((it) => {
             const job = jobs[it.id] || null;
@@ -340,69 +307,8 @@ export default function Page() {
             );
           })}
         </div>
-      )}
-
-      {showModal && (
-        <div
-          onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", zIndex: 50, padding: 20 }}
-        >
-          <div style={{ width: "100%", maxWidth: 520, background: "#111824", border: "1px solid #1E2F44", borderRadius: 18, padding: 24, boxShadow: "0 20px 60px rgba(0,0,0,.55)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <h2 style={{ margin: 0, fontSize: 18 }}>New content item</h2>
-              <button onClick={() => setShowModal(false)} style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#8FA0B8", borderRadius: 8, width: 32, height: 32, cursor: "pointer" }}>✕</button>
-            </div>
-            <p style={{ margin: "0 0 14px", color: "#8FA0B8", fontSize: 12 }}>Создаст запись со статусом <code style={{ background: "#0B1420", border: "1px solid #1E2F44", padding: "1px 6px", borderRadius: 6 }}>idea</code> и автоматически сгенерирует brief.</p>
-
-            <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 12, color: "#8FA0B8" }}>Title *</span>
-                <input value={title} onChange={e => onTitleChange(e.target.value)} placeholder="Например: Как выбрать район в Паттайе" required
-                  style={{ background: "#0B1420", border: "1px solid #1E2F44", borderRadius: 10, padding: "10px 12px", color: "#eee", outline: "none" }} />
-              </label>
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 12, color: "#8FA0B8" }}>Slug</span>
-                <input value={slug} onChange={e => { setSlug(e.target.value); setSlugDirty(true); }} placeholder="auto from title"
-                  style={{ background: "#0B1420", border: "1px solid #1E2F44", borderRadius: 10, padding: "10px 12px", color: "#eee", outline: "none" }} />
-                <span style={{ fontSize: 11, opacity: 0.45 }}>auto-generated, editable</span>
-              </label>
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 12, color: "#8FA0B8" }}>Brief</span>
-                <textarea value={brief} onChange={e => setBrief(e.target.value)} rows={4} placeholder="Кратко о чем материал, тезисы, аудитория…"
-                  style={{ background: "#0B1420", border: "1px solid #1E2F44", borderRadius: 10, padding: "10px 12px", color: "#eee", outline: "none", resize: "vertical" }} />
-              </label>
-
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 12, color: "#8FA0B8" }}>Project *</span>
-                {projects.length === 0 ? (
-                  <div style={{ background: "#0B1420", border: "1px solid #3a2d00", borderRadius: 10, padding: 12 }}>
-                    <div style={{ fontSize: 12, color: "#ffb84d", marginBottom: 8 }}>No projects yet — create one first.</div>
-                    <Link href="/projects" style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#8fb8ff", borderRadius: 8, padding: "8px 12px", textDecoration: "none", fontSize: 13, display: "inline-block" }}>Go to Projects →</Link>
-                  </div>
-                ) : (
-                  <select value={projectId} onChange={e => setProjectId(e.target.value)} required
-                    style={{ background: "#0B1420", border: "1px solid #1E2F44", borderRadius: 10, padding: "10px 12px", color: "#eee", outline: "none" }}>
-                    <option value="" disabled>— select project —</option>
-                    {projects.map(p => (
-                      <option key={p.id} value={p.id}>{p.name || p.slug || p.id.slice(0, 8)}</option>
-                    ))}
-                  </select>
-                )}
-                {projects.length > 0 && <Link href="/projects" style={{ fontSize: 11, color: "#8fb8ff", textDecoration: "none" }}>Manage projects →</Link>}
-              </label>
-
-              {formErr && <div style={{ background: "rgba(255,90,90,.1)", border: "1px solid rgba(255,90,90,.25)", color: "#FF8A8A", padding: "10px 12px", borderRadius: 10, fontSize: 12 }}>{formErr}</div>}
-
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
-                <button type="button" onClick={() => setShowModal(false)} style={{ background: "#1a2636", border: "1px solid #2a3a52", color: "#8FA0B8", borderRadius: 10, padding: "10px 16px", cursor: "pointer" }}>Cancel</button>
-                <button type="submit" disabled={submitting} style={{ background: submitting ? "#2a4a7a" : "linear-gradient(135deg,#3D8DFF,#6DCBF4)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700, cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}>
-                  {submitting ? "Creating…" : "Create & generate brief"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      );
+      })()}
     </div>
   );
 }
