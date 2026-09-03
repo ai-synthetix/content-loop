@@ -59,9 +59,26 @@ export function Header() {
       const arr = Array.isArray(list)?list:[];
       setProjects(arr);
       if (!activeId && arr.length>0) setActiveId(arr[0].id);
+      else if (activeId && arr.length>0 && !arr.find(p=>p.id===activeId)) setActiveId(arr[0].id);
+      else if (activeId && arr.length===0) setActiveId(null);
     }).catch(()=>{});
+  }, [activeId, setActiveId, email]);
+  useEffect(() => {
+    function onAuthChanged() {
+      const t = getToken();
+      if (!t) { setProjects([]); setActiveId(null); return; }
+      fetch(apiUrl("/api/v1/projects/"), { headers: { ...authHeaders() } }).then(r=>r.ok?r.json():{items:[]}).then(d=>{
+        const list = d.items || d || [];
+        const arr = Array.isArray(list)?list:[];
+        setProjects(arr);
+        if (arr.length===0) setActiveId(null);
+        else if (!arr.find(p=>p.id===activeId)) setActiveId(arr[0].id);
+      }).catch(()=>{});
+    }
+    window.addEventListener("auth-changed", onAuthChanged);
+    return () => window.removeEventListener("auth-changed", onAuthChanged);
   }, [activeId, setActiveId]);
-  function logout() { clearToken(); setEmail(null); window.dispatchEvent(new Event("auth-changed")); router.push("/login"); }
+  function logout() { clearToken(); setEmail(null); setActiveId(null); setProjects([]); window.dispatchEvent(new Event("auth-changed")); router.push("/login"); }
   const activeName = projects.find(p=>p.id===activeId)?.name || projects.find(p=>p.id===activeId)?.slug || (activeId?activeId.slice(0,8):"");
   return (
     <header style={{ padding: "12px 20px", borderBottom: "1px solid var(--border, #222)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg, #0a0a0a)" }}>
@@ -89,8 +106,6 @@ export function Header() {
           <div
             ref={settingsRef}
             style={{ position: "relative" }}
-            onMouseEnter={() => setSettingsOpen(true)}
-            onMouseLeave={() => setSettingsOpen(false)}
           >
             <button
               onClick={() => setSettingsOpen((v) => !v)}
@@ -103,7 +118,7 @@ export function Header() {
             {settingsOpen && (
               <div
                 role="menu"
-                style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, minWidth: 160, background: "#16202e", border: "1px solid #1e2f44", borderRadius: 10, padding: 6, display: "grid", gap: 2, boxShadow: "0 8px 24px rgba(0,0,0,.4)", zIndex: 40 }}
+                style={{ position: "absolute", top: "100%", left: 0, marginTop: 8, minWidth: 160, background: "#16202e", border: "1px solid #1e2f44", borderRadius: 10, padding: 6, display: "grid", gap: 2, boxShadow: "0 8px 24px rgba(0,0,0,.4)", zIndex: 40 }}
               >
                 <Link href="/settings/projects" onClick={() => setSettingsOpen(false)} role="menuitem" style={{ color: "#cfe0ff", textDecoration: "none", padding: "7px 10px", borderRadius: 7, fontSize: 13, display: "block" }}>Projects</Link>
                 <Link href="/settings/channels" onClick={() => setSettingsOpen(false)} role="menuitem" style={{ color: "#cfe0ff", textDecoration: "none", padding: "7px 10px", borderRadius: 7, fontSize: 13, display: "block" }}>Channels</Link>
